@@ -1,7 +1,6 @@
 """Smoke tests for PiggyBank package skeleton."""
 
 import unittest
-from argparse import ArgumentParser
 
 from piggybank import paths
 from piggybank.__main__ import build_parser
