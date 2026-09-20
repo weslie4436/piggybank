@@ -406,7 +406,6 @@ class PiggyService:
         now: datetime,
     ) -> dict:
         self._require_aware(now)
-        self.accrue(now)
         conn = self.store._connect()
         try:
             conn.execute("BEGIN")

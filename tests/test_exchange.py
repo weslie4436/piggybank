@@ -171,23 +171,34 @@ class TestPreviewExchange(ExchangeTestCase):
             lambda: self.service.preview_exchange(1, [pig_id], START),
         )
 
-    def test_preview_accrues_then_requires_pending_yield_harvest(self):
+    def test_preview_is_strictly_read_only_even_when_accrual_is_due(self):
         self.claim(150)
         pig_id = self.full_pigs()[0]["id"]
-        before = self.store.snapshot()["revision"]
+        before_revision = self.store.snapshot()["revision"]
+        before_database = self.db_path.read_bytes()
+        before_pigs = [
+            tuple(row)
+            for row in self.rows("SELECT * FROM pigs ORDER BY id")
+        ]
 
-        self.assert_domain_error(
-            "harvest_required",
-            lambda: self.service.preview_exchange(
-                1,
-                [pig_id],
-                START + timedelta(days=1),
-            ),
+        result = self.service.preview_exchange(
+            1,
+            [pig_id],
+            START + timedelta(days=1),
         )
 
         pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
-        self.assertEqual(1, pig["pending_yield"])
-        self.assertEqual(before + 1, self.store.snapshot()["revision"])
+        self.assertEqual(149, result["change_amount"])
+        self.assertEqual(0, pig["pending_yield"])
+        self.assertEqual(before_revision, self.store.snapshot()["revision"])
+        self.assertEqual(
+            before_pigs,
+            [
+                tuple(row)
+                for row in self.rows("SELECT * FROM pigs ORDER BY id")
+            ],
+        )
+        self.assertEqual(before_database, self.db_path.read_bytes())
 
     def test_preview_rejects_insufficient_selected_value(self):
         self.claim(150)
@@ -200,6 +211,51 @@ class TestPreviewExchange(ExchangeTestCase):
 
 
 class TestReserveExchange(ExchangeTestCase):
+    def test_reserve_uses_stored_rows_without_running_accrual(self):
+        self.claim(150)
+        pig_id = self.full_pigs()[0]["id"]
+        before = self.store.snapshot()["revision"]
+
+        result = self.service.reserve_exchange(
+            1,
+            "隔日預約",
+            [pig_id],
+            START + timedelta(days=1),
+        )
+
+        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
+        self.assertEqual("reserved", pig["status"])
+        self.assertEqual(0, pig["pending_yield"])
+        self.assertEqual(before + 1, result["revision"])
+
+    def test_reserve_revalidates_after_preview_before_second_exchange(self):
+        self.claim(150)
+        pig_id = self.full_pigs()[0]["id"]
+        self.service.preview_exchange(1, [pig_id], START)
+        first = self.service.reserve_exchange(
+            1,
+            "第一筆",
+            [pig_id],
+            START,
+        )
+        before = self.store.snapshot()["revision"]
+
+        self.assert_domain_error(
+            "pig_reserved",
+            lambda: self.service.reserve_exchange(
+                1,
+                "第二筆",
+                [pig_id],
+                START,
+            ),
+        )
+
+        exchanges = self.rows("SELECT id FROM exchanges")
+        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
+        self.assertEqual([first["id"]], [row["id"] for row in exchanges])
+        self.assertEqual(first["id"], pig["reserved_exchange_id"])
+        self.assertEqual(before, self.store.snapshot()["revision"])
+
     def test_reserve_stores_only_token_hash_and_preserves_complete_page(self):
         self.claim(900)
         pigs = self.full_pigs()
