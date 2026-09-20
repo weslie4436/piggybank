@@ -29,6 +29,14 @@ class TestPinHash(unittest.TestCase):
         with self.assertRaises(ValueError):
             hash_pin("12a456")
 
+    def test_unicode_digits_are_rejected_as_non_ascii(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "PIN must be exactly six ASCII digits",
+        ):
+            hash_pin("１２３４５６")
+        self.assertFalse(verify_pin("１２３４５６", hash_pin("123456")))
+
     def test_verify_rejects_invalid_pin_and_malformed_encoded(self):
         encoded = hash_pin("123456")
         self.assertFalse(verify_pin("12345", encoded))

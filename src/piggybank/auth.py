@@ -8,7 +8,7 @@ import hmac
 import re
 import secrets
 
-_PIN_RE = re.compile(r"^\d{6}$")
+_PIN_RE = re.compile(r"^[0-9]{6}$")
 _SCRYPT_PREFIX = "scrypt$16384$8$1$"
 
 

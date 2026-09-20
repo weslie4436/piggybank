@@ -1,1 +1,2 @@
 qrcode>=8.2,<9
+tzdata>=2025.2; platform_system == "Windows"
