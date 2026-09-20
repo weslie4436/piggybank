@@ -425,3 +425,66 @@ html.reduce-motion .page-bonus-hit {
   animation: none !important;
   transform: none !important;
 }
+
+html[data-theme="melody"] {
+  --bg: #fff5f7;
+  --void: #fff5f7;
+  --card: #ffffff;
+  --ink: #5a3040;
+  --mute: #b07a8a;
+  --line: #f3cdd6;
+  --rose: #ff6b9d;
+  --accent: #ff6b9d;
+  --accent-press: #e85a8c;
+  --rose-soft: #ffb7c5;
+  --on-accent: #fff;
+  --tile-void: #fff0f4;
+  --pick-veil: rgba(255, 107, 157, 0.28);
+  --ring-1: #fff5f7;
+  --ring-2: #ffb7c5;
+  --ring-3: #ff6b9d;
+  --ring-4: #e85a8c;
+  --ring-5: #c94a7a;
+}
+
+html[data-theme="kuromi"] {
+  --bg: #f6f2f8;
+  --void: #f6f2f8;
+  --card: #ffffff;
+  --ink: #2d2d2d;
+  --mute: #6b5b95;
+  --line: #d9d0e6;
+  --rose: #6b5b95;
+  --accent: #6b5b95;
+  --accent-press: #4b3d72;
+  --rose-soft: #ff8cc8;
+  --on-accent: #fff;
+  --tile-void: #efe8f6;
+  --pick-veil: rgba(107, 91, 149, 0.28);
+  --ring-1: #2d2d2d;
+  --ring-2: #6b5b95;
+  --ring-3: #ff8cc8;
+  --ring-4: #c9b6e4;
+  --ring-5: #4b3d72;
+}
+
+html[data-theme="cinnamoroll"] {
+  --bg: #f0f8ff;
+  --void: #f0f8ff;
+  --card: #ffffff;
+  --ink: #3a5f74;
+  --mute: #7aa0b4;
+  --line: #cfe6f1;
+  --rose: #7ec8e3;
+  --accent: #7ec8e3;
+  --accent-press: #5aaecb;
+  --rose-soft: #a8d8f0;
+  --on-accent: #16384a;
+  --tile-void: #e7f4fb;
+  --pick-veil: rgba(126, 200, 227, 0.32);
+  --ring-1: #f0f8ff;
+  --ring-2: #a8d8f0;
+  --ring-3: #7ec8e3;
+  --ring-4: #5aaecb;
+  --ring-5: #3a5f74;
+}

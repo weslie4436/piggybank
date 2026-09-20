@@ -506,6 +506,7 @@
           err.textContent = (x.j && x.j.message) || "請再試一次";
           return;
         }
+        applyTheme(chosen);
         closeAct();
       });
       body.appendChild(go);
@@ -562,9 +563,16 @@
     stageBg.style.maskImage = fade;
   }
 
+  function applyTheme(theme) {
+    const allowed = { melody: 1, kuromi: 1, cinnamoroll: 1 };
+    const id = allowed[theme] ? theme : "melody";
+    document.documentElement.setAttribute("data-theme", id);
+  }
+
   function renderMe(reader) {
     if (!reader || !cabHud) return;
     if (readerName) readerName.textContent = reader.display_name || "";
+    applyTheme(reader.theme);
     if (faceImg) {
       faceImg.src = "./face-default.jpg?v=1";
       faceImg.hidden = false;
@@ -965,6 +973,7 @@
     if (!x.res || !x.res.ok || !x.j) return;
     const prev = snapshot && snapshot.revision;
     snapshot = x.j;
+    if (snapshot.theme) applyTheme(snapshot.theme);
     const animate = shouldAnimate(snapshot.revision) && feeding;
     paintOverview(animate);
     paintActive(animate, feeding);

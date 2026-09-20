@@ -83,3 +83,22 @@ test("index.html references the user coin artwork", () => {
   const html = read("index.html");
   assert.match(html, /\.\/icons\/coin\.jpg/);
 });
+
+test("piggy.css defines three Sanrio-inspired theme palettes", () => {
+  const css = read("piggy.css");
+  assert.match(css, /html\[data-theme="melody"\]/);
+  assert.match(css, /html\[data-theme="kuromi"\]/);
+  assert.match(css, /html\[data-theme="cinnamoroll"\]/);
+  assert.match(css, /--rose:\s*#ff6b9d/i);
+  assert.match(css, /--rose:\s*#6b5b95/i);
+  assert.match(css, /--rose:\s*#7ec8e3/i);
+});
+
+test("pages link apple-touch-icon and default melody theme", () => {
+  for (const name of ["index.html", "hey.html", "exchange.html"]) {
+    const html = read(name);
+    assert.match(html, /data-theme="melody"/);
+    assert.match(html, /rel="apple-touch-icon"/);
+    assert.match(html, /icons\/piggy-180\.png/);
+  }
+});
