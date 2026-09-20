@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from piggybank.auth import token_hash, verify_pin
@@ -228,32 +229,52 @@ class TestReserveExchange(ExchangeTestCase):
         self.assertEqual(0, pig["pending_yield"])
         self.assertEqual(before + 1, result["revision"])
 
-    def test_reserve_revalidates_after_preview_before_second_exchange(self):
+    def test_reserve_revalidates_if_pig_changes_after_its_own_preview(self):
         self.claim(150)
         pig_id = self.full_pigs()[0]["id"]
-        self.service.preview_exchange(1, [pig_id], START)
-        first = self.service.reserve_exchange(
-            1,
-            "第一筆",
-            [pig_id],
-            START,
-        )
+        original_preview = self.service.preview_exchange
         before = self.store.snapshot()["revision"]
 
-        self.assert_domain_error(
-            "pig_reserved",
-            lambda: self.service.reserve_exchange(
-                1,
-                "第二筆",
-                [pig_id],
-                START,
-            ),
-        )
+        def preview_then_reserve(
+            amount: int,
+            pig_ids: list[str],
+            now: datetime,
+        ) -> dict:
+            result = original_preview(amount, pig_ids, now)
+            with self.store.transaction() as conn:
+                conn.execute(
+                    """
+                    UPDATE pigs
+                    SET status='reserved',
+                        reserved_exchange_id='fake-reservation'
+                    WHERE id=?
+                    """,
+                    (pig_id,),
+                )
+            return result
+
+        with patch.object(
+            self.service,
+            "preview_exchange",
+            side_effect=preview_then_reserve,
+        ):
+            self.assert_domain_error(
+                "pig_reserved",
+                lambda: self.service.reserve_exchange(
+                    1,
+                    "競態測試",
+                    [pig_id],
+                    START,
+                ),
+            )
 
         exchanges = self.rows("SELECT id FROM exchanges")
         pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
-        self.assertEqual([first["id"]], [row["id"] for row in exchanges])
-        self.assertEqual(first["id"], pig["reserved_exchange_id"])
+        self.assertEqual([], exchanges)
+        self.assertEqual(
+            ("reserved", "fake-reservation"),
+            (pig["status"], pig["reserved_exchange_id"]),
+        )
         self.assertEqual(before, self.store.snapshot()["revision"])
 
     def test_reserve_stores_only_token_hash_and_preserves_complete_page(self):
