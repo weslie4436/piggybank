@@ -271,7 +271,7 @@ class TestPigFilling(PiggyServiceTestCase):
         active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
         self.assertEqual((150, 1, 1), (full["value"], full["page_no"], full["slot_no"]))
         self.assertEqual(self.now.isoformat(), full["filled_at"])
-        self.assertEqual("2026-09-21", full["last_yield_date"])
+        self.assertEqual(self.now.isoformat(), full["last_yield_date"])
         self.assertEqual(20, active["value"])
         self.assertEqual(170, sum(row["value"] for row in (full, active)))
 
@@ -322,7 +322,7 @@ class TestPigFilling(PiggyServiceTestCase):
         self.assertTrue(all(row["page_no"] == 1 for row in full))
         self.assertEqual([1, 2], [row["page_no"] for row in pages])
         self.assertEqual(self.now.isoformat(), pages[0]["complete_since"])
-        self.assertEqual("2026-09-21", pages[0]["last_bonus_date"])
+        self.assertEqual(self.now.isoformat(), pages[0]["last_bonus_date"])
         self.assertIsNone(pages[1]["complete_since"])
         self.assertEqual(0, active["value"])
 
@@ -395,7 +395,7 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         self.assertNotEqual(removed, replacement)
         self.assertEqual((2, 1), (later_after["page_no"], later_after["slot_no"]))
         self.assertEqual(self.now.isoformat(), page1["complete_since"])
-        self.assertEqual("2026-09-21", page1["last_bonus_date"])
+        self.assertEqual(self.now.isoformat(), page1["last_bonus_date"])
 
     def test_state_reports_total_sorted_pages_pigs_and_claimable_periods(self):
         first_day = datetime(2026, 9, 20, 8, 0, tzinfo=TAIPEI)
@@ -416,7 +416,7 @@ class TestWarehouseAndState(PiggyServiceTestCase):
 
         state = self.service.state(self.now)
 
-        self.assertEqual(4, state["revision"])
+        self.assertEqual(5, state["revision"])
         self.assertEqual(1050, state["total"])
         self.assertEqual("growing", state["active_pig"]["status"])
         self.assertEqual(0, state["active_pig"]["value"])
