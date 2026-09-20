@@ -1316,8 +1316,16 @@ class PiggyService:
                 row["period_key"]
                 for row in conn.execute("SELECT period_key FROM claims")
             }
+            theme_row = conn.execute(
+                "SELECT value FROM settings WHERE key='theme'"
+            ).fetchone()
             return {
                 "revision": revision,
+                "theme": (
+                    theme_row["value"]
+                    if theme_row is not None
+                    else "melody"
+                ),
                 "total": total,
                 "active_pig": (
                     {field: active[field] for field in public_pig_fields}

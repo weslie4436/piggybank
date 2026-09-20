@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from datetime import datetime
 from getpass import getpass
 from urllib.parse import quote
 
 from piggybank.keys import VaultKeys
-from piggybank.paths import DATA, DB_PATH, PAGES_BASE, PORT, WEB
+from piggybank.paths import DATA, DB_PATH, PAGES_BASE, PORT, ROOT, WEB
 from piggybank.schedule import TAIPEI
 from piggybank.service import PiggyService
 from piggybank.store import Store
@@ -79,8 +80,19 @@ def main(argv: list[str] | None = None) -> int:
         print(url)
         return 0
 
-    print("尚未實作：ensure-shortcut", file=sys.stderr)
-    return 1
+    script = ROOT / "scripts" / "ensure_shortcut.ps1"
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+        ],
+        check=False,
+    )
+    return int(completed.returncode)
 
 
 if __name__ == "__main__":

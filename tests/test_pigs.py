@@ -417,6 +417,7 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         state = self.service.state(self.now)
 
         self.assertEqual(5, state["revision"])
+        self.assertEqual("melody", state["theme"])
         self.assertEqual(1050, state["total"])
         self.assertEqual("growing", state["active_pig"]["status"])
         self.assertEqual(0, state["active_pig"]["value"])

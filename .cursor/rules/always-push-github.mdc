@@ -1,0 +1,13 @@
+---
+description: PiggyBank Pages 改完必推 main
+alwaysApply: true
+---
+
+# 修完就推 Pages
+
+會出現在 GitHub Pages 的 html／js／css／圖示／`config.js`／`?v=`：驗證後 `commit` + `push origin main`。只 commit 不 push = 沒改。不要問要不要推。禁止 PR。
+
+- Pages：https://theoldfathertw.github.io/piggybank/
+- 保險庫：`python -m piggybank vault`（埠 8771）
+- 隧道 origin 寫在 `web/config.js` 的 `window.VAULT_ORIGIN`
+- 不提交 `data/`、SQLite、PIN、個人鑰匙
