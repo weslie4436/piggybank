@@ -1376,7 +1376,7 @@
     setBoot(true, "正在連接小金庫…");
     try {
       if (!window.FamiGate.origin()) {
-        if (statusEl) statusEl.textContent = "維護中,請5分鐘後再試";
+        if (statusEl) statusEl.textContent = "正在連接小金庫…";
         scheduleReconnect();
         return;
       }
