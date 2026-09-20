@@ -840,11 +840,160 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
         )
 
 
+class TestParentSettingsAndSafeReads(ExchangeTestCase):
+    def test_parent_settings_returns_theme_and_latest_rule_without_secrets(self):
+        self.service.set_parent_pin("123456", START)
+        self.service.set_allowance(30, "daily", START.date(), START)
+        latest_id = self.service.set_allowance(
+            50,
+            "weekly",
+            START.date() + timedelta(days=1),
+            START + timedelta(minutes=1),
+            weekday=0,
+        )
+        theme = self.service.set_theme("kuromi", "123456", START)
+
+        result = self.service.parent_settings("123456", START)
+
+        self.assertEqual("kuromi", result["theme"])
+        self.assertEqual(theme["revision"], self.store.snapshot()["revision"])
+        self.assertEqual(latest_id, result["allowance_rule"]["id"])
+        self.assertEqual(50, result["allowance_rule"]["amount"])
+        self.assertEqual("weekly", result["allowance_rule"]["period"])
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertNotIn("123456", serialized)
+        self.assertNotIn("parent_pin_hash", serialized)
+        self.assertNotIn("token_hash", serialized)
+
+    def test_parent_authorization_failures_commit_and_share_exchange_lock(self):
+        self.service.set_parent_pin("123456", START)
+        before = self.store.snapshot()["revision"]
+
+        for failures in (1, 2, 3):
+            self.assert_domain_error(
+                "bad_pin",
+                lambda: self.service.authorize_parent("000000", START),
+            )
+            attempt = self.rows(
+                "SELECT * FROM pin_attempts WHERE scope='exchange-parent'"
+            )[0]
+            self.assertEqual(failures, attempt["failures"])
+
+        self.assert_domain_error(
+            "pin_locked",
+            lambda: self.service.parent_settings(
+                "123456",
+                START + timedelta(minutes=9, seconds=59),
+            ),
+        )
+        self.assertEqual(before, self.store.snapshot()["revision"])
+        self.assertIsNone(
+            self.service.authorize_parent(
+                "123456",
+                START + timedelta(minutes=10),
+            )
+        )
+        attempt = self.rows(
+            "SELECT * FROM pin_attempts WHERE scope='exchange-parent'"
+        )[0]
+        self.assertEqual((0, None), (attempt["failures"], attempt["locked_until"]))
+
+    def test_theme_validation_and_wrong_pin_do_not_change_theme(self):
+        self.service.set_parent_pin("123456", START)
+        before = self.store.snapshot()["revision"]
+
+        with self.assertRaises(ValueError):
+            self.service.set_theme("unknown", "123456", START)
+        self.assertEqual([], self.rows("SELECT * FROM pin_attempts"))
+
+        self.assert_domain_error(
+            "bad_pin",
+            lambda: self.service.set_theme("melody", "000000", START),
+        )
+
+        self.assertEqual(before, self.store.snapshot()["revision"])
+        self.assertEqual([], self.rows("SELECT value FROM settings WHERE key='theme'"))
+
+    def test_resolve_exchange_returns_safe_summary_and_expires_first(self):
+        self.claim(150)
+        pig_id = self.full_pigs()[0]["id"]
+        reservation = self.service.reserve_exchange(
+            100,
+            "買文具",
+            [pig_id],
+            START,
+        )
+
+        result = self.service.resolve_exchange(
+            reservation["token"],
+            START + timedelta(minutes=15),
+        )
+
+        self.assertEqual(
+            {
+                "id",
+                "status",
+                "requested_amount",
+                "child_note",
+                "total_pig_value",
+                "change_amount",
+                "expires_at",
+                "completed_at",
+            },
+            set(result),
+        )
+        self.assertEqual("expired", result["status"])
+        self.assertNotIn("token_hash", result)
+        self.assertNotIn("pig_ids", result)
+        self.assertNotIn("pin", result)
+
+    def test_resolve_exchange_rejects_unknown_token(self):
+        self.assert_domain_error(
+            "exchange_not_found",
+            lambda: self.service.resolve_exchange("unknown", START),
+        )
+
+    def test_ledger_parses_metadata_and_uses_revision_cursor(self):
+        self.service.set_allowance(10, "daily", START.date(), START)
+        self.service.claim(START.date().isoformat(), START)
+        self.service.set_allowance(
+            20,
+            "daily",
+            START.date() + timedelta(days=1),
+            START,
+        )
+        self.service.claim(
+            (START.date() + timedelta(days=1)).isoformat(),
+            START + timedelta(days=1),
+        )
+
+        newest = self.service.ledger(limit=1)
+        older = self.service.ledger(limit=10, before=str(newest[0]["revision"]))
+
+        self.assertEqual(1, len(newest))
+        self.assertEqual("allowance_claim", newest[0]["kind"])
+        self.assertIsInstance(newest[0]["metadata"], dict)
+        self.assertEqual(1, len(older))
+        self.assertLess(older[0]["revision"], newest[0]["revision"])
+        for invalid in (0, 101, True):
+            with self.subTest(limit=invalid):
+                with self.assertRaises(ValueError):
+                    self.service.ledger(limit=invalid)
+        for invalid in ("", "abc", "0"):
+            with self.subTest(before=invalid):
+                with self.assertRaises(ValueError):
+                    self.service.ledger(before=invalid)
+
+
 class TestExchangeTimeValidation(ExchangeTestCase):
     def test_all_new_service_now_arguments_reject_naive_datetimes(self):
         naive = START.replace(tzinfo=None)
         calls = (
             lambda: self.service.set_parent_pin("123456", naive),
+            lambda: self.service.authorize_parent("123456", naive),
+            lambda: self.service.set_theme("melody", "123456", naive),
+            lambda: self.service.parent_settings("123456", naive),
+            lambda: self.service.resolve_exchange("token", naive),
             lambda: self.service.preview_exchange(1, ["pig"], naive),
             lambda: self.service.reserve_exchange(1, "用途", ["pig"], naive),
             lambda: self.service.approve_exchange(

@@ -17,9 +17,14 @@ class TestPaths(unittest.TestCase):
 class TestParser(unittest.TestCase):
     def test_subcommand_names_accepted(self):
         parser = build_parser()
-        for name in ("vault", "setup", "ensure-shortcut"):
+        cases = (
+            ("vault", ["vault"]),
+            ("setup", ["setup", "--name", "小明"]),
+            ("ensure-shortcut", ["ensure-shortcut"]),
+        )
+        for name, argv in cases:
             with self.subTest(subcommand=name):
-                args = parser.parse_args([name])
+                args = parser.parse_args(argv)
                 self.assertEqual(args.command, name)
 
 

@@ -39,6 +39,82 @@ class PiggyService:
         )
 
     @staticmethod
+    def _authorize_parent_in_transaction(
+        conn,
+        pin: str,
+        current: datetime,
+    ) -> DomainError | None:
+        setting = conn.execute(
+            """
+            SELECT value
+            FROM settings
+            WHERE key='parent_pin_hash'
+            """
+        ).fetchone()
+        if setting is None:
+            raise DomainError(
+                "pin_not_configured",
+                "家長密碼尚未設定",
+            )
+
+        attempt = conn.execute(
+            """
+            SELECT failures, locked_until
+            FROM pin_attempts
+            WHERE scope='exchange-parent'
+            """
+        ).fetchone()
+        failures = attempt["failures"] if attempt is not None else 0
+        locked_until = (
+            datetime.fromisoformat(attempt["locked_until"])
+            if attempt is not None and attempt["locked_until"] is not None
+            else None
+        )
+        if locked_until is not None and current < locked_until:
+            raise DomainError(
+                "pin_locked",
+                "家長密碼已暫時鎖定",
+            )
+        if locked_until is not None:
+            failures = 0
+
+        if not verify_pin(pin, setting["value"]):
+            failures += 1
+            next_locked_until = (
+                (current + timedelta(minutes=10)).isoformat()
+                if failures >= 3
+                else None
+            )
+            conn.execute(
+                """
+                INSERT INTO pin_attempts (
+                  scope, failures, locked_until
+                )
+                VALUES ('exchange-parent', ?, ?)
+                ON CONFLICT(scope) DO UPDATE SET
+                  failures=excluded.failures,
+                  locked_until=excluded.locked_until
+                """,
+                (failures, next_locked_until),
+            )
+            return DomainError(
+                "bad_pin",
+                "家長密碼錯誤",
+            )
+
+        conn.execute(
+            """
+            INSERT INTO pin_attempts (
+              scope, failures, locked_until
+            )
+            VALUES ('exchange-parent', 0, NULL)
+            ON CONFLICT(scope) DO UPDATE SET
+              failures=0, locked_until=NULL
+            """
+        )
+        return None
+
+    @staticmethod
     def _preview_in_transaction(
         conn,
         amount: int,
@@ -399,6 +475,169 @@ class PiggyService:
             revision = Store.bump_revision(conn)
             return {"revision": revision}
 
+    def authorize_parent(self, pin: str, now: datetime) -> None:
+        self._require_aware(now)
+        current = now.astimezone(TAIPEI)
+        with self.store.transaction() as conn:
+            deferred_error = self._authorize_parent_in_transaction(
+                conn,
+                pin,
+                current,
+            )
+        if deferred_error is not None:
+            raise deferred_error
+
+    def set_theme(self, theme: str, pin: str, now: datetime) -> dict:
+        self._require_aware(now)
+        if theme not in {"kuromi", "melody", "cinnamoroll"}:
+            raise ValueError("invalid theme")
+        current = now.astimezone(TAIPEI)
+        result = None
+        with self.store.transaction() as conn:
+            deferred_error = self._authorize_parent_in_transaction(
+                conn,
+                pin,
+                current,
+            )
+            if deferred_error is None:
+                conn.execute(
+                    """
+                    INSERT INTO settings (key, value)
+                    VALUES ('theme', ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                    """,
+                    (theme,),
+                )
+                result = {
+                    "revision": Store.bump_revision(conn),
+                    "theme": theme,
+                }
+        if deferred_error is not None:
+            raise deferred_error
+        if result is None:
+            raise RuntimeError("theme update produced no result")
+        return result
+
+    def parent_settings(self, pin: str, now: datetime) -> dict:
+        self._require_aware(now)
+        current = now.astimezone(TAIPEI)
+        result = None
+        with self.store.transaction() as conn:
+            deferred_error = self._authorize_parent_in_transaction(
+                conn,
+                pin,
+                current,
+            )
+            if deferred_error is None:
+                theme = conn.execute(
+                    "SELECT value FROM settings WHERE key='theme'"
+                ).fetchone()
+                allowance = conn.execute(
+                    """
+                    SELECT id, amount, period, weekday, monthday,
+                           effective_date, created_at
+                    FROM allowance_rules
+                    ORDER BY effective_date DESC, id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                result = {
+                    "theme": theme["value"] if theme is not None else "melody",
+                    "allowance_rule": (
+                        dict(allowance) if allowance is not None else None
+                    ),
+                }
+        if deferred_error is not None:
+            raise deferred_error
+        if result is None:
+            raise RuntimeError("parent settings read produced no result")
+        return result
+
+    def resolve_exchange(self, token: str, now: datetime) -> dict:
+        self._require_aware(now)
+        self.expire_exchanges(now)
+        digest = token_hash(token) if token else ""
+        conn = self.store._connect()
+        try:
+            conn.execute("BEGIN")
+            exchange = conn.execute(
+                """
+                SELECT id, status, requested_amount, child_note,
+                       total_pig_value, change_amount, expires_at,
+                       completed_at
+                FROM exchanges
+                WHERE token_hash=?
+                """,
+                (digest,),
+            ).fetchone()
+            if exchange is None:
+                raise DomainError(
+                    "exchange_not_found",
+                    "找不到這筆兌換",
+                )
+            return dict(exchange)
+        finally:
+            conn.close()
+
+    def ledger(
+        self,
+        limit: int = 50,
+        before: str | None = None,
+    ) -> list[dict]:
+        if (
+            isinstance(limit, bool)
+            or not isinstance(limit, int)
+            or not 1 <= limit <= 100
+        ):
+            raise ValueError("limit must be between 1 and 100")
+        before_revision = None
+        if before is not None:
+            if (
+                not isinstance(before, str)
+                or not before.isascii()
+                or not before.isdecimal()
+            ):
+                raise ValueError("before must be a positive revision")
+            before_revision = int(before)
+            if before_revision <= 0:
+                raise ValueError("before must be a positive revision")
+
+        conn = self.store._connect()
+        try:
+            conn.execute("BEGIN")
+            if before_revision is None:
+                rows = conn.execute(
+                    """
+                    SELECT id, kind, amount, balance_after, note,
+                           metadata, created_at, revision
+                    FROM ledger
+                    ORDER BY created_at DESC, revision DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, kind, amount, balance_after, note,
+                           metadata, created_at, revision
+                    FROM ledger
+                    WHERE revision < ?
+                    ORDER BY created_at DESC, revision DESC
+                    LIMIT ?
+                    """,
+                    (before_revision, limit),
+                )
+            return [
+                {
+                    **dict(row),
+                    "metadata": json.loads(row["metadata"]),
+                }
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
     def preview_exchange(
         self,
         amount: int,
@@ -530,75 +769,12 @@ class PiggyService:
                         "parent_note must contain 1 to 80 characters"
                     )
 
-                setting = conn.execute(
-                    """
-                    SELECT value
-                    FROM settings
-                    WHERE key='parent_pin_hash'
-                    """
-                ).fetchone()
-                if setting is None:
-                    raise DomainError(
-                        "pin_not_configured",
-                        "家長密碼尚未設定",
-                    )
-
-                attempt = conn.execute(
-                    """
-                    SELECT failures, locked_until
-                    FROM pin_attempts
-                    WHERE scope='exchange-parent'
-                    """
-                ).fetchone()
-                failures = attempt["failures"] if attempt is not None else 0
-                locked_until = (
-                    datetime.fromisoformat(attempt["locked_until"])
-                    if attempt is not None
-                    and attempt["locked_until"] is not None
-                    else None
+                deferred_error = self._authorize_parent_in_transaction(
+                    conn,
+                    pin,
+                    current,
                 )
-                if locked_until is not None and current < locked_until:
-                    raise DomainError(
-                        "pin_locked",
-                        "家長密碼已暫時鎖定",
-                    )
-                if locked_until is not None:
-                    failures = 0
-
-                if not verify_pin(pin, setting["value"]):
-                    failures += 1
-                    next_locked_until = (
-                        (current + timedelta(minutes=10)).isoformat()
-                        if failures >= 3
-                        else None
-                    )
-                    conn.execute(
-                        """
-                        INSERT INTO pin_attempts (
-                          scope, failures, locked_until
-                        )
-                        VALUES ('exchange-parent', ?, ?)
-                        ON CONFLICT(scope) DO UPDATE SET
-                          failures=excluded.failures,
-                          locked_until=excluded.locked_until
-                        """,
-                        (failures, next_locked_until),
-                    )
-                    deferred_error = DomainError(
-                        "bad_pin",
-                        "家長密碼錯誤",
-                    )
-                else:
-                    conn.execute(
-                        """
-                        INSERT INTO pin_attempts (
-                          scope, failures, locked_until
-                        )
-                        VALUES ('exchange-parent', 0, NULL)
-                        ON CONFLICT(scope) DO UPDATE SET
-                          failures=0, locked_until=NULL
-                        """
-                    )
+                if deferred_error is None:
                     pig_ids = json.loads(exchange["pig_ids"])
                     selected = []
                     for pig_id in pig_ids:
