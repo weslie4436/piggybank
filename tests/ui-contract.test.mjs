@@ -1,0 +1,85 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function read(name) {
+  return fs.readFileSync(path.join(root, name), "utf8");
+}
+
+test("index.html has home-head, settings gear, and mode-bar", () => {
+  const html = read("index.html");
+  assert.match(html, /class="[^"]*home-head/);
+  assert.match(html, /class="[^"]*ins-icon[^"]*settings-toggle|class="[^"]*settings-toggle[^"]*ins-icon/);
+  assert.match(html, /id="mode-bar"/);
+});
+
+test("index.html first mode label is 最愛", () => {
+  const html = read("index.html");
+  const bar = html.match(/id="mode-bar"[\s\S]*?<\/div>/);
+  assert.ok(bar, "mode-bar missing");
+  const first = bar[0].match(/class="[^"]*mode-btn[^"]*"[^>]*>([^<]+)/);
+  assert.ok(first, "first mode button missing");
+  assert.equal(first[1].trim(), "最愛");
+});
+
+test("index.html has pig product regions", () => {
+  const html = read("index.html");
+  for (const id of ["active-pig", "pig-progress", "warehouse", "exchange-sheet", "page-bonus", "ledger"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+});
+
+test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
+  const html = read("index.html");
+  assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
+  assert.match(html, /class="[^"]*batch-tag-sheet/);
+  assert.match(html, /class="[^"]*ask-card/);
+  assert.match(html, /id="photo-rail"/);
+});
+
+test("index.html does not link a static manifest", () => {
+  const html = read("index.html");
+  assert.doesNotMatch(html, /<link[^>]*rel=["']manifest["']/i);
+});
+
+test("hey.html has blobs, invite start, and product name 小金庫", () => {
+  const html = read("hey.html");
+  assert.match(html, /class="[^"]*blobs/);
+  assert.ok(
+    /class="[^"]*invite-go/.test(html) || /class="[^"]*apple-row/.test(html),
+    "missing invite-go or apple-row"
+  );
+  assert.match(html, /小金庫/);
+});
+
+test("exchange.html has PIN pad and confirm", () => {
+  const html = read("exchange.html");
+  assert.match(html, /class="[^"]*gate-pad/);
+  assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
+});
+
+test("piggy.css lists feeding, full, harvest, hit, and shatter states", () => {
+  const css = read("piggy.css");
+  for (const name of [
+    "is-feeding",
+    "is-full",
+    "is-harvesting",
+    "is-hit-1",
+    "is-hit-2",
+    "is-hit-3",
+    "is-hit-4",
+    "is-hit-5",
+    "is-shattered",
+  ]) {
+    assert.match(css, new RegExp(`\\.${name}\\b`));
+  }
+});
+
+test("index.html references the user coin artwork", () => {
+  const html = read("index.html");
+  assert.match(html, /\.\/icons\/coin\.jpg/);
+});
