@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<script>
+(function () {
+  function stopZoom(ev) { ev.preventDefault(); }
+  document.addEventListener("gesturestart", stopZoom, { passive: false });
+  document.addEventListener("gesturechange", stopZoom, { passive: false });
+})();
+</script>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="小金庫"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#fafafa"/>
+<title>小金庫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./app.css?v=1"/>
+<link rel="stylesheet" href="./piggy.css?v=1"/>
+<script src="./config.js?v=1"></script>
+<script>
+(function () {
+  var KEY_RE = /^[A-Za-z0-9_-]{8,128}$/;
+  var viewKey = (window.FAMIGATE_CONFIG && window.FAMIGATE_CONFIG.viewKeyStorage) || "piggybank.viewKey";
+  var cookieRe = new RegExp("(?:^|; )" + viewKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)");
+  var stored = "";
+  try { stored = localStorage.getItem(viewKey) || ""; } catch (e) {}
+  var cookie = "";
+  try {
+    var m = document.cookie.match(cookieRe);
+    cookie = m ? decodeURIComponent(m[1]) : "";
+  } catch (e) {}
+  var q = new URLSearchParams(location.search).get("k") || "";
+  var h = "";
+  try {
+    var raw = (location.hash || "").replace(/^#/, "");
+    if (raw.indexOf("k=") === 0) {
+      h = decodeURIComponent((raw.slice(2).split("&")[0] || "").replace(/\+/g, " "));
+    } else {
+      h = new URLSearchParams(raw).get("k") || "";
+    }
+  } catch (e) {}
+  var fromUrl = KEY_RE.test(q) ? q : KEY_RE.test(h) ? h : "";
+  var token = fromUrl || (KEY_RE.test(stored) ? stored : "") || (KEY_RE.test(cookie) ? cookie : "");
+  window.PIGGY_URL_KEY = fromUrl;
+  window.PIGGY_VIEW_KEY = token;
+  if (token) {
+    try { localStorage.setItem(viewKey, token); } catch (e) {}
+    if (typeof navigator.standalone === "boolean" && !navigator.standalone) {
+      var pin = location.pathname + "?k=" + encodeURIComponent(token) + "#k=" + encodeURIComponent(token);
+      if (location.pathname + location.search + location.hash !== pin) {
+        history.replaceState({}, "", pin);
+      }
+    }
+  }
+  var origin = window.VAULT_ORIGIN;
+  if (origin) {
+    var link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }
+})();
+</script>
+</head>
+<body>
+<div class="blobs" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<div class="hall with-feed is-booting" id="hall">
+  <div class="profile">
+    <h1 class="brand">小金庫</h1>
+    <p class="status" id="status">正在連接小金庫…</p>
+  </div>
+  <div class="invite-panel" id="invite-panel" hidden>
+    <p class="invite-hey">每天養滿撲滿</p>
+    <p class="invite-safari" id="invite-safari" hidden>請用 Safari 打開</p>
+    <button type="button" class="invite-go" id="invite-go">開始</button>
+    <form id="invite-name-form" hidden>
+      <p class="err" id="invite-name-err"></p>
+      <label for="invite-name">你叫什麼</label>
+      <div class="apple-row">
+        <input id="invite-name" autocomplete="nickname" maxlength="20" required/>
+        <button type="submit" class="apple-next" aria-label="繼續">
+          <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="18"/><path d="M15.2 11.5L22.5 18l-7.3 6.5"/></svg>
+        </button>
+      </div>
+    </form>
+    <div class="invite-wait" id="invite-wait" hidden>
+      <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="invite-wait-bar" id="invite-wait-bar"></div>
+    </div>
+  </div>
+  <div class="stage-bg" id="stage-bg" hidden></div>
+  <div class="home-head" id="home-head" hidden>
+    <div class="cab-hud" id="cab-hud" hidden>
+      <div class="cab-wrap">
+        <div class="cab-cover">
+          <div class="cab-ring" aria-hidden="true"></div>
+          <div class="cab-face"><img id="face-img" alt="" src="./face-default.jpg?v=1"/><span class="cab-foil" aria-hidden="true"></span></div>
+          <div class="cab-mask" aria-hidden="true"></div>
+        </div>
+        <div id="album-settings" class="album-settings">
+          <button type="button" class="ins-icon settings-toggle" aria-label="設定" aria-expanded="false">
+            <span class="ins-ring"></span>
+            <span class="ins-face">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.8l.6-1.3h3.6l.6 1.3 1.6.7 1.4-.5 2.5 2.5-.5 1.4.7 1.6 1.3.6v3.6l-1.3.6-.7 1.6.5 1.4-2.5 2.5-1.4-.5-1.6.7-.6 1.3h-3.6l-.6-1.3-1.6-.7-1.4.5-2.5-2.5.5-1.4-.7-1.6-1.3-.6v-3.6l1.3-.6.7-1.6-.5-1.4L6.6 4l1.4.5 1.6-.7z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><circle cx="12" cy="11.9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+      <p class="reader-name" id="reader-name"></p>
+    </div>
+    <div class="tag-board" id="tag-board">
+      <div class="mode-bar" id="mode-bar">
+        <button type="button" class="mode-btn is-on" data-mode="fav">最愛</button>
+        <button type="button" class="mode-btn" data-mode="warehouse">倉庫</button>
+        <button type="button" class="mode-btn" data-mode="ledger">帳本</button>
+        <button type="button" class="mode-btn" data-mode="exchange">兌換</button>
+      </div>
+    </div>
+  </div>
+  <div id="pig-home">
+    <section class="piggy-overview" id="pig-overview" aria-labelledby="ovKicker">
+      <p class="money-kicker" id="ovKicker">總資產</p>
+      <p class="money-hero" id="ovTotal">—</p>
+      <p class="money-withdraw" id="ovYield">可收收益</p>
+      <div class="money-stats">
+        <div>
+          <span>可收收益</span>
+          <strong id="ovGain">—</strong>
+        </div>
+        <div>
+          <span>滿豬數</span>
+          <strong id="ovFull">—</strong>
+        </div>
+        <div>
+          <span>正在養</span>
+          <strong id="ovGrow">—</strong>
+        </div>
+      </div>
+    </section>
+    <section id="active-pig">
+      <div class="pig-block" id="pig-block">
+        <span class="pig-label">基礎撲滿</span>
+        <strong class="pig-value" id="pig-value">0 元</strong>
+        <span class="pig-coins" aria-hidden="true"></span>
+      </div>
+    </section>
+    <div id="pig-progress">
+      <div class="pig-progress-bar"><span id="pig-progress-fill"></span></div>
+      <p class="pig-progress-text" id="pig-progress-text">0 / 150 元</p>
+    </div>
+    <button type="button" class="tag-apply" id="claim-apply" hidden><span class="tag-apply-face">領取今日 0 元</span></button>
+    <div class="feed" id="warehouse">
+      <button type="button" class="tile" data-slot="0"></button>
+      <button type="button" class="tile" data-slot="1"></button>
+      <button type="button" class="tile" data-slot="2"></button>
+      <button type="button" class="tile" data-slot="3"></button>
+      <button type="button" class="tile" data-slot="4"></button>
+      <button type="button" class="tile" data-slot="5"></button>
+    </div>
+    <div id="page-bonus" hidden>
+      <button type="button" class="page-bonus-hit" id="page-bonus-hit" aria-label="收取頁面金幣">
+        <img src="./icons/coin.jpg" alt="金幣"/>
+      </button>
+    </div>
+    <div class="feed news-list" id="ledger"></div>
+  </div>
+</div>
+<aside class="photo-rail" id="photo-rail" hidden aria-label="撲滿操作"></aside>
+<input id="cover-input" type="file" accept="image/*" hidden/>
+<input id="backdrop-input" type="file" accept="image/*" hidden/>
+<div class="batch-tag-mask" id="actMask" hidden>
+  <div class="batch-tag-sheet" id="actSheet">
+    <div class="batch-tag-head">
+      <p id="actTitle">設定</p>
+      <button type="button" class="batch-tag-close" id="actClose" aria-label="關閉">×</button>
+    </div>
+    <div id="actBody"></div>
+  </div>
+</div>
+<div class="batch-tag-mask" id="waitMask" hidden>
+  <div class="batch-tag-sheet is-wait" id="waitSheet">
+    <div class="batch-tag-head">
+      <p id="waitTitle">更換背景中</p>
+    </div>
+    <p class="wait-pct" id="waitPct">0%</p>
+    <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+</div>
+<div class="batch-tag-mask" id="exchange-sheet" hidden>
+  <div class="batch-tag-sheet" id="exchangeSheet">
+    <div class="batch-tag-head">
+      <p id="exTitle">兌換</p>
+      <button type="button" class="batch-tag-close" id="exClose" aria-label="關閉">×</button>
+    </div>
+    <div id="exchange-tray"></div>
+    <button type="button" class="tag-apply" id="exApply"><span class="tag-apply-face">確認</span></button>
+  </div>
+</div>
+<div class="ask-mask" id="askMask" hidden>
+  <div class="ask-card" role="dialog" aria-modal="true">
+    <p id="askText">是否取消最愛</p>
+    <div class="ask-actions">
+      <button type="button" class="ask-no" id="askNo">取消</button>
+      <button type="button" class="ask-yes" id="askYes" hidden>丟掉</button>
+      <button type="button" class="tag-apply" id="askOk"><span class="tag-apply-face">確認</span></button>
+    </div>
+  </div>
+</div>
+<div class="home-install" id="home-install" hidden>
+  <p>請點底部分享，再選加入主畫面</p>
+  <button type="button" class="invite-go" id="home-installed">我已加入</button>
+</div>
+<script src="./gate.js?v=1"></script>
+<script src="./door.js?v=1"></script>
+</body>
+</html>

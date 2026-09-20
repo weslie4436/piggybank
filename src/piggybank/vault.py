@@ -122,6 +122,7 @@ def make_server(
                 payload,
                 ensure_ascii=False,
                 separators=(",", ":"),
+                default=str,
             ).encode("utf-8")
             self._send_bytes(
                 status,

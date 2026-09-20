@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<script>
+(function () {
+  function stopZoom(ev) { ev.preventDefault(); }
+  document.addEventListener("gesturestart", stopZoom, { passive: false });
+  document.addEventListener("gesturechange", stopZoom, { passive: false });
+})();
+</script>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="小金庫"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="theme-color" content="#fafafa"/>
+<title>小金庫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./app.css?v=1"/>
+<link rel="stylesheet" href="./piggy.css?v=1"/>
+<script src="./config.js?v=1"></script>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search).get("k") || "";
+  window.PIGGY_FORCE_INVITE = true;
+  window.PIGGY_URL_KEY = /^[A-Za-z0-9_-]{8,128}$/.test(q) ? q : "";
+  window.PIGGY_VIEW_KEY = "";
+  var origin = window.VAULT_ORIGIN;
+  if (origin) {
+    var link = document.createElement("link");
+    link.rel = "preconnect";
+    link.href = origin;
+    link.crossOrigin = "anonymous";
+    document.head.appendChild(link);
+  }
+})();
+</script>
+</head>
+<body>
+<div class="blobs" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<div class="hall with-feed is-invite" id="hall">
+  <div class="profile">
+    <h1 class="brand">小金庫</h1>
+    <p class="status" id="status"></p>
+  </div>
+  <div class="invite-panel" id="invite-panel">
+    <p class="invite-hey" id="invite-hey">每天養滿撲滿</p>
+    <p class="invite-safari" id="invite-safari" hidden>請用 Safari 打開</p>
+    <button type="button" class="invite-go" id="invite-go">開始</button>
+    <form id="invite-name-form" hidden>
+      <p class="err" id="invite-name-err"></p>
+      <label for="invite-name">你叫什麼</label>
+      <div class="apple-row">
+        <input id="invite-name" autocomplete="nickname" maxlength="20" required/>
+        <button type="submit" class="apple-next" aria-label="繼續">
+          <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="18"/><path d="M15.2 11.5L22.5 18l-7.3 6.5"/></svg>
+        </button>
+      </div>
+    </form>
+    <div class="invite-wait" id="invite-wait" hidden>
+      <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="invite-wait-bar" id="invite-wait-bar"></div>
+    </div>
+  </div>
+</div>
+<script src="./gate.js?v=1"></script>
+<script src="./door.js?v=1"></script>
+</body>
+</html>
