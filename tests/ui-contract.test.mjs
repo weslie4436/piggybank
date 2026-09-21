@@ -113,6 +113,12 @@ test("index.html references the user coin artwork", () => {
   assert.match(html, /\.\/icons\/coin\.jpg/);
 });
 
+test("index.html uses the user pig artwork on the piggy stage", () => {
+  const html = read("index.html");
+  assert.match(html, /class="pig-art"/);
+  assert.match(html, /\.\/icons\/pig\.png/);
+});
+
 test("piggy.css defines three Sanrio-inspired theme palettes", () => {
   const css = read("piggy.css");
   assert.match(css, /html\[data-theme="melody"\]/);

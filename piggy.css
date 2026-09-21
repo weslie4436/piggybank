@@ -129,21 +129,30 @@
 .pig-block {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 28px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  overflow: hidden;
+  justify-content: flex-end;
+  gap: 4px;
+  overflow: visible;
   transform-origin: 50% 100%;
 }
+.pig-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+}
 .pig-block.is-full {
-  box-shadow: inset 0 0 0 3px var(--rose);
-  background: color-mix(in srgb, var(--rose-soft) 35%, #fff);
+  box-shadow: none;
+  background: transparent;
+}
+.pig-block.is-full .pig-art {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--rose) 50%, transparent));
 }
 .pig-label {
   color: var(--mute);
@@ -407,7 +416,7 @@ button.news-row:active { background: #f6f6f6; }
 .pig-block.is-hit-3,
 .pig-block.is-hit-4,
 .pig-block.is-hit-5 {
-  background: color-mix(in srgb, var(--rose-soft) 22%, #fff);
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -433,7 +442,7 @@ button.news-row:active { background: #f6f6f6; }
   .pig-block.is-hit-5,
   .pig-block.is-shattered,
   .pig-block.is-full {
-    background: color-mix(in srgb, var(--rose) 12%, #fff);
+    background: transparent;
   }
   .pig-progress-bar span { transition: width 0.2s linear; }
 }
