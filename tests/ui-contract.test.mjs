@@ -36,6 +36,7 @@ test("index.html has pig product regions", () => {
   }
   assert.match(html, /id="ovNum"/);
   assert.match(html, /id="ovTotal"/);
+  assert.doesNotMatch(html, /class="money-yen"|<span class="money-yen">/);
   assert.doesNotMatch(html, /id="ovKicker"|錢包</);
   assert.doesNotMatch(html, /id="ovYield"|可收益/);
   assert.doesNotMatch(html, /id="pig-progress"|id="warehouse"|id="page-bonus"|滿豬數|正在養|基礎撲滿/);
@@ -58,23 +59,43 @@ test("door.js wires 銀行 紀錄 消費 on the shared right menu", () => {
   assert.match(js, /"紀錄"/);
   assert.match(js, /"消費"/);
   assert.match(js, /piggybank\.debug/);
-  assert.match(js, /rail-feed/);
   assert.match(js, /\/api\/debug\/feed/);
   assert.match(js, /ins-icon/);
-  assert.match(js, /"debug"/);
+  const bank = js.match(/insButton\("rail-bank",\s*([^,]+)/);
+  const records = js.match(/insButton\("rail-ledger",\s*([^,]+)/);
+  const spend = js.match(/insButton\("rail-spend",\s*([^,]+)/);
+  assert.ok(bank && records && spend, "rail icons missing");
+  assert.equal(bank[1].trim(), "BANK");
+  assert.equal(records[1].trim(), "LEDGER");
+  assert.equal(spend[1].trim(), "SPEND");
+  assert.match(js, /"gm"/);
+  assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
+  assert.match(js, /測試加錢/);
+  assert.doesNotMatch(js, /rail-feed/);
 });
 
-test("debug 測試加錢 stays a distinct coin on the right rail", () => {
+test("debug 測試加錢 lives in GM功能, not the right rail", () => {
   const js = read("door.js");
-  const bank = js.match(/insButton\("rail-bank",\s*([^,]+)/);
-  const feed = js.match(/insButton\("rail-feed",\s*([^,]+)/);
-  assert.ok(bank, "rail-bank missing");
-  assert.ok(feed, "rail-feed missing");
-  assert.notEqual(bank[1].trim(), feed[1].trim());
-  assert.match(js, /insButton\("rail-feed"[\s\S]*coin\.jpg/);
-  assert.match(js, /insertBefore\(feed,\s*rail\.firstChild\)/);
-  assert.match(js, /addEventListener\("click", debugFeed\)/);
+  assert.match(js, /function openGmCard/);
+  assert.match(js, /className = "tag-apply gm-feed"/);
+  assert.match(js, /addSwitch\(body, "切換測試"/);
+  assert.match(js, /addSwitch\(body, "對位線"/);
+  assert.match(js, /openAllowanceCard/);
+  assert.match(js, /debugFeed/);
+  assert.doesNotMatch(js, /insButton\("rail-feed"/);
+});
+
+test("theme picker has no PIN pad and uses spaced frames", () => {
+  const js = read("door.js");
+  const css = read("piggy.css");
+  const themeFn = js.match(/function openThemeCard\(\) \{[\s\S]*?\n  function /);
+  assert.ok(themeFn, "openThemeCard missing");
+  assert.match(themeFn[0], /theme-picks/);
+  assert.match(themeFn[0], /theme-pick/);
+  assert.doesNotMatch(themeFn[0], /pinPad/);
+  assert.doesNotMatch(themeFn[0], /六位數 PIN/);
+  assert.match(css, /\.theme-picks[\s\S]*gap:\s*18px/);
 });
 
 test("index.html does not link a static manifest", () => {
@@ -131,9 +152,10 @@ test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
     assert.match(css, new RegExp(`\\.${name}\\b`));
   }
   assert.match(css, /@keyframes piggy-breathe/);
-  assert.match(css, /transform-origin:\s*50% 96%/);
+  assert.match(css, /transform-origin:\s*50% var\(--pig-foot-y\)/);
   assert.match(css, /\.claim-go\.ins-icon[\s\S]*width:\s*60px/);
-  assert.match(css, /\.money-yen[\s\S]*font-size:\s*0\.5em/);
+  assert.match(css, /\.money-hero[\s\S]*clamp\(45px/);
+  assert.doesNotMatch(css, /\.money-yen/);
 });
 
 test("index.html references the user coin artwork", () => {
@@ -155,6 +177,16 @@ test("piggy.css defines three Sanrio-inspired theme palettes", () => {
   assert.match(css, /--rose:\s*#ff6b9d/i);
   assert.match(css, /--rose:\s*#6b5b95/i);
   assert.match(css, /--rose:\s*#7ec8e3/i);
+});
+
+test("door.js rolls held money in stepped ticks and stores pig guide lines", () => {
+  const js = read("door.js");
+  assert.match(js, /el\._roll = window\.setInterval/);
+  assert.match(js, /el\._roll[\s\S]*?, 40\)/);
+  assert.doesNotMatch(js, /\/ 420\)/);
+  assert.match(js, /function applyGuides/);
+  assert.match(js, /\["foot", "腳點"\]/);
+  assert.match(js, /\["coin", "投幣點"\]/);
 });
 
 test("pages link apple-touch-icon and default melody theme", () => {

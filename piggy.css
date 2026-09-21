@@ -52,7 +52,7 @@
 .money-hero {
   margin: 8px 0 0;
   color: var(--ink);
-  font-size: clamp(28px, 8.5vw, 52px);
+  font-size: clamp(45px, 13.6vw, 83px);
   overflow-wrap: anywhere;
   font-weight: 650;
   letter-spacing: -0.04em;
@@ -65,11 +65,6 @@
 }
 .money-num {
   font-size: 1em;
-}
-.money-yen {
-  font-size: 0.5em;
-  font-weight: 650;
-  letter-spacing: 0;
 }
 .money-withdraw {
   margin: 6px 0 0;
@@ -100,18 +95,22 @@
   position: relative;
   width: min(330px, calc(100vw - 104px), 87vw);
   overflow: visible;
+  --pig-foot-y: 88%;
+  --pig-coin-y: 22%;
 }
 .pig-ground {
   position: absolute;
   left: 22%;
   right: 22%;
-  bottom: 6%;
+  top: var(--pig-foot-y);
+  bottom: auto;
   height: 7%;
   border-radius: 50%;
   background: color-mix(in srgb, var(--ink) 12%, transparent);
   filter: blur(5px);
   z-index: 0;
   pointer-events: none;
+  transform: translateY(-40%);
 }
 .pig-block {
   position: relative;
@@ -126,7 +125,7 @@
   justify-content: flex-end;
   gap: 4px;
   overflow: visible;
-  transform-origin: 50% 100%;
+  transform-origin: 50% var(--pig-foot-y);
 }
 .pig-block.is-harvesting {
   cursor: pointer;
@@ -137,7 +136,7 @@
   height: auto;
   object-fit: contain;
   pointer-events: none;
-  transform-origin: 50% 96%;
+  transform-origin: 50% var(--pig-foot-y);
   animation: piggy-breathe 3.8s ease-in-out infinite;
 }
 .pig-block.is-full {
@@ -348,8 +347,8 @@ button.news-row:active { background: #f6f6f6; }
 @keyframes piggy-feed-in {
   0% { top: -18%; opacity: 0; }
   12% { top: -10%; opacity: 1; }
-  60% { top: 34%; opacity: 1; }
-  100% { top: 44%; opacity: 0; }
+  70% { top: var(--pig-coin-y, 22%); opacity: 1; }
+  100% { top: var(--pig-coin-y, 22%); opacity: 0; }
 }
 
 .pig-block.is-harvesting .pig-coin {
@@ -484,6 +483,102 @@ html[data-theme="cinnamoroll"] {
   --ring-5: #3a5f74;
 }
 
+#actBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#actBody > .err { margin: 0; }
+#actBody > label { margin: 4px 0 0; }
+.theme-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 4px 0 8px;
+}
+button.theme-pick {
+  width: 100%;
+  min-height: 84px;
+  margin: 0;
+  padding: 18px 16px;
+  border: 0;
+  border-radius: 18px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+button.theme-pick[data-theme="melody"] {
+  background: #fff5f7;
+  color: #5a3040;
+  box-shadow: inset 0 0 0 1px #f3cdd6;
+}
+button.theme-pick[data-theme="kuromi"] {
+  background: #f6f2f8;
+  color: #2d2d2d;
+  box-shadow: inset 0 0 0 1px #d9d0e6;
+}
+button.theme-pick[data-theme="cinnamoroll"] {
+  background: #f0f8ff;
+  color: #3a5f74;
+  box-shadow: inset 0 0 0 1px #cfe6f1;
+}
+button.theme-pick.is-on {
+  box-shadow: inset 0 0 0 3px var(--rose);
+}
+.pig-guides {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.pig-guides.is-on {
+  pointer-events: auto;
+}
+.pig-guide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  margin-top: -14px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.pig-guide::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px #fff;
+}
+.pig-guide[data-guide="coin"]::before { background: #f5a623; }
+.pig-guide[data-guide="foot"]::before { background: #007aff; }
+.pig-guide span {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.pig-guide[data-guide="coin"] span { color: #b36b00; }
+.pig-guide[data-guide="foot"] span { color: #007aff; }
+.pig-guides:not(.is-on) { display: none; }
+
 html.has-rail #ledger {
   padding-right: 56px;
 }
@@ -528,7 +623,7 @@ html.has-rail #pig-home {
   }
   .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .money-hero {
     margin: 4px 0 0;
-    font-size: clamp(24px, 7vw, 40px);
+    font-size: clamp(38px, 11.2vw, 64px);
   }
   .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-allowance {
     margin-top: 4px;
