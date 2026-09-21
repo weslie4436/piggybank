@@ -36,6 +36,7 @@ test("index.html has pig product regions", () => {
   }
   assert.match(html, /id="ovNum"/);
   assert.match(html, /id="ovTotal"/);
+  assert.doesNotMatch(html, /id="allowClock"|class="allow-clock"/);
   assert.doesNotMatch(html, /class="money-yen"|<span class="money-yen">/);
   assert.doesNotMatch(html, /id="ovKicker"|錢包</);
   assert.doesNotMatch(html, /id="ovYield"|可收益/);
