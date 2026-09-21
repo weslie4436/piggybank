@@ -117,6 +117,24 @@ test("index.html does not link a static manifest", () => {
   assert.doesNotMatch(html, /<link[^>]*rel=["']manifest["']/i);
 });
 
+test("pages lock double-tap zoom like the other home-web shells", () => {
+  for (const name of ["index.html", "hey.html", "exchange.html"]) {
+    const html = read(name);
+    assert.match(html, /gesturestart/);
+    assert.match(html, /gesturechange/);
+    assert.match(html, /dblclick/);
+  }
+  const css = read("app.css");
+  assert.match(css, /html, body[\s\S]*touch-action:\s*manipulation/);
+  assert.match(css, /button \{[\s\S]*touch-action:\s*manipulation/);
+  const piggy = read("piggy.css");
+  assert.match(piggy, /button\.money-hero[\s\S]*touch-action:\s*manipulation/);
+  const gate = read("gate.js");
+  assert.match(gate, /function blockWebChrome/);
+  assert.match(gate, /gesturechange/);
+  assert.match(gate, /dblclick/);
+});
+
 test("hey.html has blobs, invite start, and product name 小金庫", () => {
   const html = read("hey.html");
   assert.match(html, /class="[^"]*blobs/);

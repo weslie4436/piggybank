@@ -74,12 +74,15 @@
   }
 
   function blockWebChrome() {
-    document.addEventListener("contextmenu", (e) => e.preventDefault());
+    function stopZoom(e) { e.preventDefault(); }
+    document.addEventListener("contextmenu", stopZoom);
     document.addEventListener("selectstart", (e) => {
       if (e.target && e.target.closest && e.target.closest("input, textarea")) return;
       e.preventDefault();
     });
-    document.addEventListener("gesturestart", (e) => e.preventDefault());
+    document.addEventListener("gesturestart", stopZoom, { passive: false });
+    document.addEventListener("gesturechange", stopZoom, { passive: false });
+    document.addEventListener("dblclick", stopZoom);
   }
 
   function bindKeyboard() {

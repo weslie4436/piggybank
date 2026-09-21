@@ -58,6 +58,8 @@ button.money-hero {
   appearance: none;
   font: inherit;
   color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .money-hero {
   margin: 8px 0 0;
@@ -127,6 +129,7 @@ button.money-hero {
   z-index: 1;
   width: 100%;
   border-radius: 0;
+  touch-action: manipulation;
   background: transparent;
   box-shadow: none;
   display: flex;
