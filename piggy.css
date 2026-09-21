@@ -27,12 +27,9 @@
   100% { transform: translateX(240%); }
 }
 
+.hall.with-feed:not(.is-invite):not(.is-booting) .profile,
 .hall.with-feed:not(.is-invite):not(.is-booting) .tag-board {
-  justify-content: center;
-  text-align: center;
-}
-.hall.with-feed:not(.is-invite):not(.is-booting) .mode-bar {
-  justify-content: center;
+  display: none !important;
 }
 
 #pig-home {
@@ -47,21 +44,13 @@
 .piggy-overview {
   text-align: center;
   width: 100%;
+  flex: 0 0 auto;
 }
-.piggy-overview .money-kicker,
-.piggy-overview .money-hero,
-.piggy-overview .money-withdraw {
+.piggy-overview .money-hero {
   width: 100%;
 }
-.money-kicker {
-  margin: 12px 0 4px;
-  color: var(--mute);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
 .money-hero {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--ink);
   font-size: clamp(28px, 8.5vw, 52px);
   overflow-wrap: anywhere;
@@ -104,12 +93,12 @@
   display: flex;
   justify-content: center;
   width: 100%;
-  margin: 8px 0 0;
+  margin: 0;
   overflow: visible;
 }
 .pig-stage {
   position: relative;
-  width: min(330px, 87vw);
+  width: min(330px, calc(100vw - 104px), 87vw);
   overflow: visible;
 }
 .pig-ground {
@@ -210,9 +199,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin: 2px auto 28px;
+  gap: 8px;
+  margin: 8px auto 0;
   width: 100%;
+  flex: 0 0 auto;
 }
 .allow-clock {
   margin: 0;
@@ -487,3 +477,68 @@ html[data-theme="cinnamoroll"] {
   --ring-4: #5aaecb;
   --ring-5: #3a5f74;
 }
+
+html.has-rail #ledger {
+  padding-right: 56px;
+}
+html.has-rail #pig-home {
+  padding-right: 52px;
+}
+
+@media (orientation: portrait) {
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) {
+    height: 100vh;
+    height: 100svh;
+    max-height: 100svh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .home-head {
+    flex: 0 0 auto;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) #pig-home {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: min(720px, 100%);
+    margin: 0 auto;
+    padding: 0;
+    overflow: hidden;
+    justify-content: flex-start;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) #active-pig {
+    flex: 0 1 auto;
+    min-height: 0;
+    justify-content: center;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-stage,
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-art {
+    max-height: calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24rem);
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-art {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    object-position: center top;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .money-hero {
+    margin: 4px 0 0;
+    font-size: clamp(24px, 7vw, 40px);
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-allowance {
+    margin-top: 4px;
+    gap: 6px;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .allow-clock {
+    font-size: clamp(18px, 5.2vw, 28px);
+  }
+}
+
+@media (min-width: 600px) and (pointer: coarse) and (orientation: portrait) {
+  html.has-rail #ledger {
+    padding-right: 88px;
+  }
+  html.has-rail #pig-home {
+    padding-right: 80px;
+  }
+}
+
