@@ -17,20 +17,26 @@ test("index.html has home-head, settings gear, and mode-bar", () => {
   assert.match(html, /id="mode-bar"/);
 });
 
-test("index.html first mode label is 最愛", () => {
+test("index.html first mode label is 銀行", () => {
   const html = read("index.html");
   const bar = html.match(/id="mode-bar"[\s\S]*?<\/div>/);
   assert.ok(bar, "mode-bar missing");
   const first = bar[0].match(/class="[^"]*mode-btn[^"]*"[^>]*>([^<]+)/);
   assert.ok(first, "first mode button missing");
-  assert.equal(first[1].trim(), "最愛");
+  assert.equal(first[1].trim(), "銀行");
+  assert.match(bar[0], />紀錄</);
+  assert.match(bar[0], />消費</);
+  assert.doesNotMatch(bar[0], /倉庫|最愛|帳本|兌換/);
 });
 
 test("index.html has pig product regions", () => {
   const html = read("index.html");
-  for (const id of ["active-pig", "pig-progress", "warehouse", "exchange-sheet", "page-bonus", "ledger"]) {
+  for (const id of ["active-pig", "pig-allowance", "claim-apply", "exchange-sheet", "ledger"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
+  assert.match(html, /id="ovKicker">錢包</);
+  assert.match(html, /id="ovYield">可收益 0 元</);
+  assert.doesNotMatch(html, /id="pig-progress"|id="warehouse"|id="page-bonus"|滿豬數|正在養|基礎撲滿/);
 });
 
 test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
@@ -88,24 +94,26 @@ test("piggy.css feed coins are placeholder boxes, not coin artwork", () => {
   const drop = css.match(/\.pig-coin\.is-dropping\s*\{[\s\S]*?\}/);
   assert.ok(drop, "dropping coin rule missing");
   assert.doesNotMatch(drop[0], /coin\.jpg/);
-  assert.match(drop[0], /border-radius:\s*14px/);
+  assert.match(drop[0], /border-radius:\s*21px/);
 });
 
-test("piggy.css lists feeding, full, harvest, hit, and shatter states", () => {
+test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
   const css = read("piggy.css");
   for (const name of [
     "is-feeding",
-    "is-full",
     "is-harvesting",
     "is-hit-1",
     "is-hit-2",
     "is-hit-3",
     "is-hit-4",
     "is-hit-5",
-    "is-shattered",
   ]) {
     assert.match(css, new RegExp(`\\.${name}\\b`));
   }
+  assert.match(css, /@keyframes piggy-breathe/);
+  assert.match(css, /transform-origin:\s*50% 96%/);
+  assert.match(css, /\.claim-go\.ins-icon[\s\S]*width:\s*60px/);
+  assert.match(css, /\.money-yen[\s\S]*font-size:\s*0\.5em/);
 });
 
 test("index.html references the user coin artwork", () => {

@@ -18,12 +18,7 @@
   const homeHead = document.getElementById("home-head");
   const rail = document.getElementById("photo-rail");
   const pigBlock = document.getElementById("pig-block");
-  const pigValue = document.getElementById("pig-value");
-  const progressFill = document.getElementById("pig-progress-fill");
-  const progressText = document.getElementById("pig-progress-text");
   const claimBtn = document.getElementById("claim-apply");
-  const warehouse = document.getElementById("warehouse");
-  const pageBonus = document.getElementById("page-bonus");
   const ledger = document.getElementById("ledger");
   const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.8l.6-1.3h3.6l.6 1.3 1.6.7 1.4-.5 2.5 2.5-.5 1.4.7 1.6 1.3.6v3.6l-1.3.6-.7 1.6.5 1.4-2.5 2.5-1.4-.5-1.6.7-.6 1.3h-3.6l-.6-1.3-1.6-.7-1.4.5-2.5-2.5.5-1.4-.7-1.6-1.3-.6v-3.6l1.3-.6.7-1.6-.5-1.4L6.6 4l1.4.5 1.6-.7z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><circle cx="12" cy="11.9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
   const CAMERA = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="8" width="17" height="11.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8l1.4-2.4h5.2L16 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13.6" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
@@ -33,7 +28,6 @@
   const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.8v8.4M10 9.4c.6-.7 1.4-1 2-1 1.2 0 2.1.7 2.1 1.8S13.2 12 12 12h-.8C10 12 9.1 12.7 9.1 13.8S10 15.6 12 15.6c.7 0 1.5-.3 2.1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
   const PERSON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.4" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.2 18.6c.9-3.3 3.2-5 5.8-5s4.9 1.7 5.8 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
-  const FAV_KEY = "piggybank.favs";
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
   const THEMES = [
@@ -45,21 +39,13 @@
   let busy = false;
   let settingsWrap = null;
   let settingsCatch = null;
-  let hostTab = "fav";
+  let hostTab = "bank";
   let waitBusy = false;
   let waitTimer = 0;
   let ready = false;
   let booting = false;
   let bootTimer = 0;
-  let holdTimer = 0;
-  let holdFired = false;
-  let selected = new Set();
-  let selectMode = false;
   let snapshot = null;
-  let pageNo = 1;
-  let catalog = {};
-  let favs = new Set();
-  let askUnfavId = "";
   let exStage = "";
   let exAmount = 0;
   let exNote = "";
@@ -69,17 +55,14 @@
   let exPreview = null;
   let exPoll = 0;
   let paintedTotal = 0;
-  let paintedPig = 0;
   let feedToken = 0;
+  let allowTimer = 0;
+  let allowServerNow = 0;
+  let allowOrigin = 0;
+  let allowNext = 0;
   const FEED_MS = 480;
   const FEED_BOUNCE_AT = 290;
   const FEED_SQUASH_MS = 420;
-
-  try {
-    favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]"));
-  } catch (e) {
-    favs = new Set();
-  }
 
   function yen(n) {
     return String(Math.max(0, Math.round(Number(n) || 0))) + " 元";
@@ -100,10 +83,6 @@
 
   function shouldAnimate(rev) {
     return !reduceMotion() && Number(rev || 0) > seenRevision();
-  }
-
-  function saveFavs() {
-    try { localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favs))); } catch (e) {}
   }
 
   function isDebug() {
@@ -608,19 +587,18 @@
     ensureSettings();
   }
 
-  function rollNumber(el, next, suffix) {
+  function rollNumber(el, next) {
     const to = Math.max(0, Math.round(Number(next) || 0));
     const from = Number(el.dataset.v || 0) || 0;
     el.dataset.v = String(to);
-    const unit = suffix == null ? " 元" : suffix;
     if (reduceMotion() || from === to) {
-      el.textContent = to + unit;
+      el.textContent = String(to);
       return;
     }
     const start = performance.now();
     function tick(now) {
       const t = Math.min(1, (now - start) / 420);
-      el.textContent = Math.round(from + (to - from) * t) + unit;
+      el.textContent = String(Math.round(from + (to - from) * t));
       if (t < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -698,255 +676,120 @@
     });
   }
 
-  function fullPigs() {
-    const pages = (snapshot && snapshot.warehouse_pages) || [];
-    const out = [];
-    pages.forEach(function (page) {
-      (page.pigs || []).forEach(function (pig) {
-        if (pig.status === "full") out.push(pig);
-      });
-    });
-    return out;
-  }
-
   function harvestable() {
-    let n = 0;
-    ((snapshot && snapshot.warehouse_pages) || []).forEach(function (page) {
-      n += Number(page.pending_bonus || 0) || 0;
-      (page.pigs || []).forEach(function (pig) {
-        n += Number(pig.pending_yield || 0) || 0;
-      });
-    });
-    return n;
+    const pig = snapshot && snapshot.active_pig;
+    return pig ? Number(pig.pending_yield || 0) || 0 : 0;
   }
 
   function paintOverview(animate) {
     const total = snapshot ? Number(snapshot.total || 0) : 0;
     const yieldN = harvestable();
-    const fullN = fullPigs().length;
-    const grow = snapshot && snapshot.active_pig ? Number(snapshot.active_pig.value || 0) : 0;
-    const ovTotal = document.getElementById("ovTotal");
-    const ovGain = document.getElementById("ovGain");
-    const ovFull = document.getElementById("ovFull");
-    const ovGrow = document.getElementById("ovGrow");
+    const ovNum = document.getElementById("ovNum");
     const ovYield = document.getElementById("ovYield");
-    if (ovTotal) {
-      if (animate) rollNumber(ovTotal, total, " 元");
+    if (ovNum) {
+      if (animate) rollNumber(ovNum, total);
       else {
-        ovTotal.textContent = yen(total);
-        ovTotal.dataset.v = String(total);
+        ovNum.textContent = String(total);
+        ovNum.dataset.v = String(total);
       }
     }
-    if (ovGain) ovGain.textContent = yen(yieldN);
-    if (ovFull) ovFull.textContent = String(fullN);
-    if (ovGrow) ovGrow.textContent = yen(grow);
-    if (ovYield) ovYield.textContent = "可收收益  " + yen(yieldN);
+    if (ovYield) ovYield.textContent = "可收益 " + yen(yieldN);
     paintedTotal = total;
   }
 
   function paintActive(animate, feeding, feedAmount) {
     const pig = snapshot && snapshot.active_pig;
-    const value = pig ? Number(pig.value || 0) : 0;
-    const cap = pig ? Number(pig.capacity || 150) : 150;
-    if (pigValue) {
-      if (animate) rollNumber(pigValue, value, " 元");
-      else {
-        pigValue.textContent = yen(value);
-        pigValue.dataset.v = String(value);
-      }
-    }
-    if (progressFill) progressFill.style.width = Math.max(0, Math.min(100, cap ? (value / cap) * 100 : 0)) + "%";
-    if (progressText) progressText.textContent = value + " / " + cap + " 元";
     if (pigBlock) {
-      pigBlock.classList.toggle("is-full", !!(pig && pig.status === "full"));
+      pigBlock.classList.toggle("is-harvesting", harvestable() > 0);
       if (feeding && animate) playFeedCoins(feedAmount);
     }
-    paintedPig = value;
+    const layer = document.querySelector("#active-pig .pig-coins");
+    if (layer && harvestable() > 0 && !layer.querySelector(".pig-coin:not(.is-dropping)")) {
+      const coin = document.createElement("span");
+      coin.className = "pig-coin";
+      coin.style.left = "38%";
+      coin.style.top = "12%";
+      layer.appendChild(coin);
+    } else if (layer && harvestable() <= 0) {
+      Array.from(layer.querySelectorAll(".pig-coin:not(.is-dropping)")).forEach(function (el) {
+        el.remove();
+      });
+    }
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, "0");
+  }
+
+  function clockText(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    return pad2(hours) + ":" + pad2(mins) + ":" + pad2(secs);
+  }
+
+  function stopAllowClock() {
+    if (allowTimer) {
+      window.clearInterval(allowTimer);
+      allowTimer = 0;
+    }
+  }
+
+  function startAllowClock(serverNowIso, nextIso) {
+    stopAllowClock();
+    const clock = document.getElementById("allowClock");
+    if (!clock) return;
+    allowServerNow = Date.parse(serverNowIso || "");
+    allowNext = Date.parse(nextIso || "");
+    allowOrigin = Date.now();
+    function tick() {
+      if (!allowNext || Number.isNaN(allowNext) || Number.isNaN(allowServerNow)) {
+        clock.textContent = "—";
+        return;
+      }
+      const left = allowNext - (allowServerNow + (Date.now() - allowOrigin));
+      if (left <= 0) {
+        clock.textContent = "00:00:00";
+        stopAllowClock();
+        if (!busy) loadState(false);
+        return;
+      }
+      clock.textContent = clockText(left);
+    }
+    tick();
+    allowTimer = window.setInterval(tick, 1000);
   }
 
   function paintClaim() {
     if (!claimBtn) return;
     const periods = (snapshot && snapshot.claimable_periods) || [];
     const today = periods.find(function (item) { return item.claim_kind === "on_time"; }) || periods[0];
-    if (!today) {
-      claimBtn.hidden = true;
-      claimBtn.disabled = true;
-      return;
-    }
-    const face = claimBtn.querySelector(".tag-apply-face") || claimBtn;
-    face.textContent = "領取今日 " + today.amount + " 元";
+    const caption = document.getElementById("allowCaption");
+    const clock = document.getElementById("allowClock");
+    const ready = !!today;
     claimBtn.hidden = false;
-    claimBtn.disabled = false;
-    claimBtn.dataset.period = today.period_key;
-  }
-
-  function currentPage() {
-    const pages = (snapshot && snapshot.warehouse_pages) || [];
-    return pages.find(function (page) { return page.page_no === pageNo; }) || pages[0] || { page_no: 1, pigs: [], pending_bonus: 0 };
-  }
-
-  function paintWarehouse() {
-    if (!warehouse) return;
-    catalog = {};
-    warehouse.innerHTML = "";
-    const favMode = hostTab === "fav";
-    const page = currentPage();
-    const bySlot = {};
-    (page.pigs || []).forEach(function (pig) {
-      bySlot[pig.slot_no] = pig;
-    });
-    if (favMode) {
-      const loved = fullPigs().filter(function (pig) { return favs.has(pig.id); });
-      warehouse.hidden = loved.length === 0;
-      loved.forEach(function (pig) { warehouse.appendChild(tileEl(pig, true)); });
-      if (pageBonus) pageBonus.hidden = true;
-      return;
+    claimBtn.disabled = !ready;
+    claimBtn.classList.toggle("is-live", ready);
+    claimBtn.classList.toggle("is-ready", ready);
+    if (ready) {
+      claimBtn.dataset.period = today.period_key;
+      claimBtn.setAttribute("aria-label", "領取 " + today.amount + " 元");
+      if (caption) caption.textContent = "領取 " + today.amount + " 元";
+      if (clock) clock.textContent = "00:00:00";
+      stopAllowClock();
+    } else {
+      claimBtn.removeAttribute("data-period");
+      claimBtn.setAttribute("aria-label", "尚未可領");
+      if (caption) caption.textContent = "每晚 7 點發放";
+      startAllowClock(snapshot && snapshot.now, snapshot && snapshot.next_allowance_at);
     }
-    warehouse.hidden = false;
-    for (let slot = 1; slot <= 6; slot += 1) {
-      const pig = bySlot[slot];
-      warehouse.appendChild(pig ? tileEl(pig, true) : emptyTile());
-    }
-    if (pageBonus) {
-      const pending = Number(page.pending_bonus || 0) || 0;
-      pageBonus.hidden = pending <= 0;
-      pageBonus.classList.toggle("is-harvesting", pending > 0);
-    }
-    paintPageNav();
-  }
-
-  function paintPageNav() {
-    let nav = document.getElementById("page-nav");
-    const pages = (snapshot && snapshot.warehouse_pages) || [];
-    if (pages.length <= 1) {
-      if (nav) nav.remove();
-      return;
-    }
-    if (!nav) {
-      nav = document.createElement("div");
-      nav.id = "page-nav";
-      warehouse.after(nav);
-    }
-    nav.innerHTML = "";
-    pages.forEach(function (page) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "mode-btn" + (page.page_no === pageNo ? " is-on" : "");
-      btn.textContent = "第 " + page.page_no + " 頁";
-      btn.addEventListener("click", function () {
-        pageNo = page.page_no;
-        paintWarehouse();
-      });
-      nav.appendChild(btn);
-    });
-  }
-
-  function emptyTile() {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tile is-empty";
-    return btn;
-  }
-
-  function tileEl(pig, allowHold) {
-    catalog[pig.id] = pig;
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "tile" + (pig.status === "full" ? " is-full" : "");
-    btn.dataset.id = pig.id;
-    const mini = document.createElement("span");
-    mini.className = "pig-mini";
-    mini.textContent = yen(pig.value);
-    btn.appendChild(mini);
-    const shield = document.createElement("span");
-    shield.className = "tile-shield";
-    btn.appendChild(shield);
-    if (favs.has(pig.id)) {
-      const heart = document.createElement("span");
-      heart.className = "tile-heart";
-      heart.innerHTML = HEART;
-      btn.appendChild(heart);
-    }
-    if (Number(pig.pending_yield || 0) > 0) {
-      btn.classList.add("is-harvesting");
-      const coin = document.createElement("span");
-      coin.className = "pig-coin";
-      coin.style.left = "38%";
-      coin.style.top = "12%";
-      btn.appendChild(coin);
-    }
-    btn.addEventListener("pointerdown", function (ev) {
-      if (!allowHold || (ev.button && ev.button !== 0)) return;
-      holdFired = false;
-      holdTimer = window.setTimeout(function () {
-        holdFired = true;
-        if (hostTab === "fav") {
-          openUnfavAsk(pig.id);
-          return;
-        }
-        if (selectMode && selected.has(pig.id) && selected.size === 1) {
-          selected.delete(pig.id);
-          selectMode = false;
-        } else enterSelect(pig.id);
-        paintPicks();
-      }, 480);
-    });
-    function cancelHold() {
-      if (holdTimer) {
-        window.clearTimeout(holdTimer);
-        holdTimer = 0;
-      }
-    }
-    btn.addEventListener("pointerup", function () {
-      cancelHold();
-      if (holdFired) return;
-      if (selectMode) {
-        togglePick(pig.id);
-        return;
-      }
-      if (exStage === "pick" && pig.status === "full") {
-        toggleExPick(pig);
-        return;
-      }
-      if (Number(pig.pending_yield || 0) > 0) harvestPig(pig.id);
-    });
-    btn.addEventListener("pointercancel", cancelHold);
-    btn.addEventListener("pointerleave", cancelHold);
-    return btn;
-  }
-
-  function paintPicks() {
-    document.querySelectorAll("#warehouse .tile").forEach(function (el) {
-      el.classList.toggle("is-pick", selected.has(el.dataset.id));
-    });
-    showRail();
-    document.documentElement.classList.toggle("is-select", selectMode);
-  }
-
-  function enterSelect(id) {
-    selectMode = true;
-    if (id) selected.add(id);
-    paintPicks();
-  }
-
-  function togglePick(id) {
-    if (selected.has(id)) selected.delete(id);
-    else selected.add(id);
-    selectMode = selected.size > 0;
-    paintPicks();
-  }
-
-  function clearSelect() {
-    selected = new Set();
-    selectMode = false;
-    paintPicks();
   }
 
   function showRail() {
     if (!rail) return;
-    const selectOn = selectMode && selected.size > 0;
     const debugOn = isDebug();
-    if (!selectOn && !debugOn) {
+    if (!debugOn) {
       rail.hidden = true;
       rail.innerHTML = "";
       document.documentElement.classList.remove("has-rail");
@@ -955,27 +798,9 @@
     rail.hidden = false;
     document.documentElement.classList.add("has-rail");
     rail.innerHTML = "";
-    if (debugOn) {
-      const feed = insButton("rail-feed", COIN, "測試加錢");
-      feed.addEventListener("click", debugFeed);
-      rail.appendChild(feed);
-    }
-    if (selectOn) {
-      const heart = insButton("rail-heart", HEART_RAIL, "愛心");
-      const allOn = Array.from(selected).every(function (id) { return favs.has(id); });
-      if (allOn) heart.classList.add("is-on");
-      heart.addEventListener("click", function () {
-        const turnOn = !allOn;
-        selected.forEach(function (id) {
-          if (turnOn) favs.add(id);
-          else favs.delete(id);
-        });
-        saveFavs();
-        clearSelect();
-        paintWarehouse();
-      });
-      rail.appendChild(heart);
-    }
+    const feed = insButton("rail-feed", COIN, "測試加錢");
+    feed.addEventListener("click", debugFeed);
+    rail.appendChild(feed);
   }
 
   async function debugFeed() {
@@ -1002,7 +827,7 @@
     if (!rows || !rows.length) {
       const empty = document.createElement("p");
       empty.className = "news-empty";
-      empty.textContent = "還沒有帳本";
+      empty.textContent = "還沒有紀錄";
       ledger.appendChild(empty);
       return;
     }
@@ -1011,7 +836,7 @@
       btn.type = "button";
       btn.className = "news-row";
       const title = document.createElement("strong");
-      title.textContent = row.note || row.kind || "帳本";
+        title.textContent = row.note || row.kind || "紀錄";
       const meta = document.createElement("span");
       const when = String(row.created_at || "").replace("T", " ").slice(0, 16);
       meta.textContent = (row.amount >= 0 ? "+" : "") + yen(row.amount) + "  ·  " + when;
@@ -1023,8 +848,7 @@
 
   function paintModes() {
     if (!hall) return;
-    hall.classList.toggle("is-mode-fav", hostTab === "fav");
-    hall.classList.toggle("is-mode-warehouse", hostTab === "warehouse");
+    hall.classList.toggle("is-mode-bank", hostTab === "bank");
     hall.classList.toggle("is-mode-ledger", hostTab === "ledger");
     const bar = document.getElementById("mode-bar");
     if (bar) {
@@ -1038,15 +862,13 @@
   }
 
   function pickTab(tab) {
-    if (tab === "exchange") {
+    if (tab === "spend") {
       openExchange();
       return;
     }
-    hostTab = tab || "fav";
-    clearSelect();
+    hostTab = tab || "bank";
     paintModes();
     if (hostTab === "ledger") loadLedger();
-    else paintWarehouse();
   }
 
   function bindModes() {
@@ -1073,7 +895,6 @@
     paintOverview(animate);
     paintActive(animate, feeding, added);
     paintClaim();
-    paintWarehouse();
     showRail();
     rememberRevision(snapshot.revision);
     if (prev != null && snapshot.revision === prev) return;
@@ -1100,22 +921,6 @@
     }
   }
 
-  async function harvestPage() {
-    if (busy) return;
-    busy = true;
-    try {
-      const x = await api("/api/harvest/page", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ page_no: pageNo }),
-        timeout: 15000,
-      });
-      if (x.res && x.res.ok) await loadState(true);
-    } finally {
-      busy = false;
-    }
-  }
-
   function closeExchange() {
     const mask = document.getElementById("exchange-sheet");
     if (mask) mask.hidden = true;
@@ -1127,10 +932,6 @@
     if (exPoll) {
       window.clearInterval(exPoll);
       exPoll = 0;
-    }
-    if (progressText && snapshot && snapshot.active_pig) {
-      const pig = snapshot.active_pig;
-      progressText.textContent = pig.value + " / " + (pig.capacity || 150) + " 元";
     }
   }
 
@@ -1145,7 +946,7 @@
     const mask = document.getElementById("exchange-sheet");
     const title = document.getElementById("exTitle");
     const tray = document.getElementById("exchange-tray");
-    if (title) title.textContent = "兌換";
+    if (title) title.textContent = "消費";
     if (!tray) return;
     tray.innerHTML = "";
     exStage = "form";
@@ -1166,7 +967,7 @@
     note.placeholder = "說明";
     tray.appendChild(err);
     const aLabel = document.createElement("label");
-    aLabel.textContent = "要兌換多少";
+    aLabel.textContent = "要花多少";
     tray.appendChild(aLabel);
     tray.appendChild(amount);
     const nLabel = document.createElement("label");
@@ -1177,26 +978,6 @@
     note.addEventListener("input", function () { exNote = (note.value || "").trim(); });
     exApplyFace("確認");
     if (mask) mask.hidden = false;
-    pickTabWarehouseQuiet();
-  }
-
-  function pickTabWarehouseQuiet() {
-    hostTab = "warehouse";
-    paintModes();
-    paintWarehouse();
-  }
-
-  function toggleExPick(pig) {
-    const idx = exPicks.findIndex(function (item) { return item.id === pig.id; });
-    if (idx >= 0) exPicks.splice(idx, 1);
-    else exPicks.push(pig);
-    paintExPicks();
-  }
-
-  function paintExPicks() {
-    document.querySelectorAll("#warehouse .tile").forEach(function (el) {
-      el.classList.toggle("is-pick", exPicks.some(function (pig) { return pig.id === el.dataset.id; }));
-    });
   }
 
   function paintKnock() {
@@ -1205,67 +986,56 @@
     if (title) title.textContent = "敲撲滿";
     if (!tray) return;
     tray.innerHTML = "";
-    const pig = exPicks[0];
+    const pig = snapshot && snapshot.active_pig;
     const note = document.createElement("p");
     note.className = "ex-note";
-    note.textContent = pig ? "點這隻滿豬，敲 5 下" : "請先點滿豬";
+    note.textContent = "點小豬，敲 5 下";
     tray.appendChild(note);
+    const hits = document.createElement("p");
+    hits.className = "ex-note";
+    hits.id = "exHits";
+    hits.textContent = "0 / 5 下";
+    tray.appendChild(hits);
     const stage = document.createElement("div");
     stage.className = "pig-block";
     stage.id = "ex-block";
     const art = document.createElement("img");
     art.className = "pig-art";
-    art.src = "./icons/pig.png?v=1";
+    art.src = "./icons/pig.png?v=3";
     art.alt = "";
-    const label = document.createElement("span");
-    label.className = "pig-label";
-    label.textContent = "基礎撲滿";
-    const value = document.createElement("strong");
-    value.className = "pig-value";
-    value.textContent = pig ? yen(pig.value) : "—";
     const coins = document.createElement("span");
     coins.className = "pig-coins";
     stage.appendChild(art);
-    stage.appendChild(label);
-    stage.appendChild(value);
     stage.appendChild(coins);
     stage.addEventListener("click", function () { knockOnce(stage); });
     tray.appendChild(stage);
     exHits = 0;
-    if (progressText) progressText.textContent = "0 / 5 下";
-    if (progressFill) progressFill.style.width = "0%";
     exApplyFace("");
   }
 
   function knockOnce(stage) {
-    if (exStage !== "knock" || !exPicks.length) return;
+    if (exStage !== "knock") return;
     if (exHits >= 5) return;
     exHits += 1;
     ["is-hit-1", "is-hit-2", "is-hit-3", "is-hit-4", "is-hit-5"].forEach(function (name, idx) {
       stage.classList.toggle(name, exHits === idx + 1);
     });
-    if (progressText) progressText.textContent = exHits + " / 5 下";
-    if (progressFill) progressFill.style.width = (exHits / 5) * 100 + "%";
+    const hits = document.getElementById("exHits");
+    if (hits) hits.textContent = exHits + " / 5 下";
     if (exHits === 5) {
       spawnCoins(stage, 6);
-      stage.classList.add("is-shattered");
-      window.setTimeout(function () { afterKnock(); }, reduceMotion() ? 80 : 720);
+      window.setTimeout(function () { afterKnock(); }, reduceMotion() ? 80 : 420);
     }
   }
 
   async function afterKnock() {
-    exPicks = exPicks.slice(1);
-    if (exPicks.length) {
-      paintKnock();
-      return;
-    }
     await showPreview();
   }
 
   async function showPreview() {
     const tray = document.getElementById("exchange-tray");
     const title = document.getElementById("exTitle");
-    if (title) title.textContent = "確認兌換";
+    if (title) title.textContent = "確認消費";
     const ids = collectPickIds();
     const x = await api("/api/exchange/preview", {
       method: "POST",
@@ -1276,7 +1046,7 @@
     if (!x.res || !x.res.ok || !x.j) {
       const err = document.createElement("p");
       err.className = "err";
-      err.textContent = (x.j && x.j.message) || "這筆兌換還不能確認";
+      err.textContent = (x.j && x.j.message) || "這筆消費還不能確認";
       if (tray) {
         tray.innerHTML = "";
         tray.appendChild(err);
@@ -1290,24 +1060,15 @@
     tray.innerHTML = "";
     const change = document.createElement("p");
     change.className = "ex-note";
-    change.textContent = "找零 " + yen(x.j.change_amount) + " 會灌回正在養的豬";
+    change.textContent = "錢包會剩下 " + yen(x.j.change_amount);
     tray.appendChild(change);
-    if (x.j.bonus_pages_at_risk && x.j.bonus_pages_at_risk.length) {
-      const risk = document.createElement("p");
-      risk.className = "ex-note";
-      risk.textContent = "這頁完整六隻會暫停 Bonus";
-      tray.appendChild(risk);
-    }
     exApplyFace("確認");
   }
 
   function collectPickIds() {
     if (exPreview && exPreview.pig_ids) return exPreview.pig_ids;
-    if (exPickIds.length) return exPickIds.slice();
-    if (exPicks.length) return exPicks.map(function (pig) { return pig.id; });
-    return Array.from(document.querySelectorAll("#warehouse .tile.is-pick"))
-      .map(function (el) { return el.dataset.id; })
-      .filter(Boolean);
+    const pig = snapshot && snapshot.active_pig;
+    return pig && pig.id ? [pig.id] : [];
   }
 
   async function reserveNow() {
@@ -1345,7 +1106,7 @@
     tray.innerHTML = "";
     const img = document.createElement("img");
     img.className = "ex-qr";
-    img.alt = "兌換 QR";
+    img.alt = "消費 QR";
     img.src = window.FamiGate.origin() + "/api/exchange/qr.svg?x=" + encodeURIComponent(result.token) + "&k=" + encodeURIComponent(key);
     tray.appendChild(img);
     const note = document.createElement("p");
@@ -1353,10 +1114,10 @@
     note.textContent = "等待父母核准";
     tray.appendChild(note);
     exApplyFace("");
-    startPoll(result.id, result.change_amount);
+    startPoll(result.id);
   }
 
-  function startPoll(id, changeAmount) {
+  function startPoll(id) {
     if (exPoll) window.clearInterval(exPoll);
     exPoll = window.setInterval(async function () {
       const x = await api("/api/exchange/status?id=" + encodeURIComponent(id), { timeout: 8000 });
@@ -1366,7 +1127,6 @@
         exPoll = 0;
         closeExchange();
         await loadState(true);
-        if (changeAmount) paintedPig = paintedPig;
       } else if (x.j.status === "cancelled" || x.j.status === "expired") {
         window.clearInterval(exPoll);
         exPoll = 0;
@@ -1388,24 +1148,10 @@
         if (err) err.textContent = "請填說明";
         return;
       }
-      exStage = "pick";
-      const tray = document.getElementById("exchange-tray");
-      const title = document.getElementById("exTitle");
-      if (title) title.textContent = "選滿豬";
-      if (tray) {
-        tray.innerHTML = "";
-        const note = document.createElement("p");
-        note.className = "ex-note";
-        note.textContent = "點倉庫裡的滿豬，再確認開始敲";
-        tray.appendChild(note);
+      if (!snapshot || !snapshot.active_pig) {
+        if (err) err.textContent = "還沒有撲滿";
+        return;
       }
-      exApplyFace("開始敲");
-      pickTabWarehouseQuiet();
-      return;
-    }
-    if (exStage === "pick") {
-      if (!exPicks.length) return;
-      exPickIds = exPicks.map(function (pig) { return pig.id; });
       exStage = "knock";
       paintKnock();
       return;
@@ -1430,22 +1176,9 @@
     });
   }
 
-  function openUnfavAsk(id) {
-    askUnfavId = id;
-    const mask = document.getElementById("askMask");
-    const text = document.getElementById("askText");
-    const yes = document.getElementById("askYes");
-    const ok = document.getElementById("askOk");
-    if (text) text.textContent = "是否取消最愛";
-    if (yes) yes.hidden = true;
-    if (ok) ok.hidden = false;
-    if (mask) mask.hidden = false;
-  }
-
   function closeAsk() {
     const mask = document.getElementById("askMask");
     if (mask) mask.hidden = true;
-    askUnfavId = "";
   }
 
   function scheduleReconnect() {
@@ -1501,7 +1234,7 @@
       window.FamiGate.pinKey(key);
       renderMe(x.j.reader);
       bindModes();
-      hostTab = "fav";
+      hostTab = "bank";
       paintModes();
       setBoot(false, "");
       if (statusEl) statusEl.textContent = "";
@@ -1640,8 +1373,11 @@
     }
   });
 
-  const bonusHit = document.getElementById("page-bonus-hit");
-  if (bonusHit) bonusHit.addEventListener("click", harvestPage);
+  if (pigBlock) pigBlock.addEventListener("click", function () {
+    const pig = snapshot && snapshot.active_pig;
+    if (!pig || harvestable() <= 0) return;
+    harvestPig(pig.id);
+  });
 
   const actClose = document.getElementById("actClose");
   if (actClose) actClose.addEventListener("click", closeAct);
@@ -1660,14 +1396,7 @@
   const askNo = document.getElementById("askNo");
   const askOk = document.getElementById("askOk");
   if (askNo) askNo.addEventListener("click", closeAsk);
-  if (askOk) askOk.addEventListener("click", function () {
-    const id = askUnfavId;
-    closeAsk();
-    if (!id) return;
-    favs.delete(id);
-    saveFavs();
-    paintWarehouse();
-  });
+  if (askOk) askOk.addEventListener("click", closeAsk);
 
   window.addEventListener("resize", layoutStage);
   boot();

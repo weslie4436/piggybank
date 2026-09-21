@@ -1,4 +1,4 @@
-/* PiggyBank 產品皮：舞台、進度、倉庫頁、兌換卡、Q 彈。不改共用殼幾何。 */
+/* PiggyBank 產品皮：舞台、零用錢倒數、消費卡、Q 彈。不改共用殼幾何。 */
 
 .hall.is-invite #pig-home,
 .hall.is-booting #pig-home,
@@ -27,20 +27,34 @@
   100% { transform: translateX(240%); }
 }
 
-#pig-home {
-  width: min(720px, calc(100% - 32px));
-  margin: 8px auto 48px;
-  padding-bottom: 24px;
+.hall.with-feed:not(.is-invite):not(.is-booting) .tag-board {
+  justify-content: center;
+  text-align: center;
+}
+.hall.with-feed:not(.is-invite):not(.is-booting) .mode-bar {
+  justify-content: center;
 }
 
+#pig-home {
+  width: min(720px, calc(100% - 32px));
+  margin: 0 auto 48px;
+  padding: 4px 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.piggy-overview {
+  text-align: center;
+  width: 100%;
+}
 .piggy-overview .money-kicker,
 .piggy-overview .money-hero,
-.piggy-overview .money-withdraw,
-.piggy-overview .money-stats {
+.piggy-overview .money-withdraw {
   width: 100%;
 }
 .money-kicker {
-  margin: 28px 0 8px;
+  margin: 12px 0 4px;
   color: var(--mute);
   font-size: 13px;
   font-weight: 600;
@@ -55,61 +69,32 @@
   letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   line-height: 1.05;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.12em;
+}
+.money-num {
+  font-size: 1em;
+}
+.money-yen {
+  font-size: 0.5em;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 .money-withdraw {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   color: var(--mute);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
-.money-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-top: 18px;
-}
-.money-stats div {
-  padding: 12px 10px;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.money-stats span {
-  display: block;
-  color: var(--mute);
-  font-size: 11px;
-  margin-bottom: 4px;
-}
-.money-stats strong {
-  display: block;
-  font-size: 15px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-@media (max-width: 520px) {
-  .money-stats { grid-template-columns: 1fr; }
-}
 
-.hall.is-mode-warehouse #pig-overview,
-.hall.is-mode-warehouse #active-pig,
-.hall.is-mode-warehouse #pig-progress,
-.hall.is-mode-warehouse #claim-apply,
 .hall.is-mode-ledger #pig-overview,
 .hall.is-mode-ledger #active-pig,
-.hall.is-mode-ledger #pig-progress,
-.hall.is-mode-ledger #claim-apply,
-.hall.is-mode-ledger #warehouse,
-.hall.is-mode-ledger #page-bonus,
-.hall.is-mode-fav #page-bonus,
-.hall.is-mode-fav #ledger,
-.hall.is-mode-warehouse #ledger,
+.hall.is-mode-ledger #pig-allowance,
 .hall:not(.is-mode-ledger) #ledger {
   display: none !important;
-}
-.hall.is-mode-warehouse #warehouse {
-  display: grid !important;
 }
 .hall.is-mode-ledger #ledger {
   display: flex !important;
@@ -118,16 +103,30 @@
 #active-pig {
   display: flex;
   justify-content: center;
-  margin: 28px 0 16px;
+  width: 100%;
+  margin: 8px 0 0;
   overflow: visible;
 }
 .pig-stage {
   position: relative;
-  width: min(220px, 58vw);
+  width: min(330px, 87vw);
   overflow: visible;
+}
+.pig-ground {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 6%;
+  height: 7%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  filter: blur(5px);
+  z-index: 0;
+  pointer-events: none;
 }
 .pig-block {
   position: relative;
+  z-index: 1;
   width: 100%;
   border-radius: 0;
   background: transparent;
@@ -140,12 +139,17 @@
   overflow: visible;
   transform-origin: 50% 100%;
 }
+.pig-block.is-harvesting {
+  cursor: pointer;
+}
 .pig-art {
   display: block;
   width: 100%;
   height: auto;
   object-fit: contain;
   pointer-events: none;
+  transform-origin: 50% 96%;
+  animation: piggy-breathe 3.8s ease-in-out infinite;
 }
 .pig-block.is-full {
   box-shadow: none;
@@ -170,13 +174,14 @@
 .pig-coins {
   position: absolute;
   inset: 0;
+  z-index: 2;
   pointer-events: none;
   overflow: visible;
 }
 .pig-coin {
   position: absolute;
-  width: 36px;
-  height: 36px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: url("./icons/coin.jpg") center / cover no-repeat;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
@@ -184,9 +189,9 @@
 .pig-coin.is-dropping {
   left: 50%;
   top: -12%;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 66px;
+  height: 66px;
+  border-radius: 21px;
   margin: 0;
   background: var(--card);
   box-shadow: inset 0 0 0 1px var(--line);
@@ -195,100 +200,61 @@
   animation: piggy-feed-in 0.48s ease-in forwards;
 }
 
-#pig-progress {
-  width: min(420px, 100%);
-  margin: 0 auto 18px;
-}
-.pig-progress-bar {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--hp-track);
-  overflow: hidden;
-}
-.pig-progress-bar span {
-  display: block;
-  height: 100%;
-  width: 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--hp-lo), var(--hp-hi));
-  transition: width 0.45s ease;
-}
-.pig-progress-text {
-  margin: 8px 0 0;
-  text-align: center;
-  color: var(--mute);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+#pig-progress,
+.pig-label,
+.pig-value {
+  display: none;
 }
 
-#claim-apply {
-  display: block;
-  width: min(320px, 100%);
-  margin: 0 auto 24px;
-}
-#claim-apply[hidden] { display: none !important; }
-
-#warehouse.feed {
-  position: relative;
-  width: min(720px, 100%);
-  margin: 18px auto 0;
-}
-#warehouse .tile {
-  aspect-ratio: 1 / 1;
-  border-radius: 18px;
-  background: var(--tile-void);
-  color: var(--ink);
-}
-#warehouse .tile.is-empty {
-  box-shadow: inset 0 0 0 1px var(--line);
-  background: transparent;
-}
-#warehouse .tile .pig-mini {
-  position: absolute;
-  inset: 14%;
-  border-radius: 16px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--line);
+.pig-allowance {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: 13px;
+  gap: 10px;
+  margin: 2px auto 28px;
+  width: 100%;
+}
+.allow-clock {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(26px, 7.5vw, 42px);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
 }
-#warehouse .tile.is-full .pig-mini {
-  box-shadow: inset 0 0 0 2px var(--rose);
+.allow-caption {
+  margin: 0;
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
-#page-nav {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  margin: 14px 0 0;
+.claim-go.ins-icon {
+  width: 60px;
+  height: 60px;
+  flex: 0 0 60px;
 }
-
-#page-bonus {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  margin: -118px auto 48px;
-  pointer-events: none;
-  z-index: 2;
+.claim-go .ins-face {
+  inset: 4.5px;
 }
-#page-bonus[hidden] { display: none !important; }
-.page-bonus-hit {
-  pointer-events: auto;
-  width: 72px;
-  height: 72px;
-  padding: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
-}
-.page-bonus-hit img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.claim-go .ins-face img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
   display: block;
+}
+.claim-go:disabled {
+  opacity: 0.42;
+  cursor: default;
+  pointer-events: none;
+}
+.claim-go.is-ready .ins-ring {
+  box-shadow: none;
+  background: var(--ring-conic-210);
+}
+.claim-go.is-ready:not(:disabled) .ins-ring {
+  animation: ins-spin 2.4s linear infinite;
 }
 
 #ledger.news-list {
@@ -354,27 +320,32 @@ button.news-row:active { background: #f6f6f6; }
 }
 .act-pin .gate-pad { margin-top: 8px; }
 
-.pig-block.is-feeding,
-.pig-block.is-hit-1,
-.pig-block.is-hit-2,
-.pig-block.is-hit-3,
-.pig-block.is-hit-4,
-.pig-block.is-hit-5 {
+.pig-block.is-feeding .pig-art,
+.pig-block.is-hit-1 .pig-art,
+.pig-block.is-hit-2 .pig-art,
+.pig-block.is-hit-3 .pig-art,
+.pig-block.is-hit-4 .pig-art,
+.pig-block.is-hit-5 .pig-art {
   animation: piggy-squash 0.42s cubic-bezier(0.22, 1.4, 0.36, 1);
 }
 .pig-block.is-hit-1 { --squash: 0.94; }
-.pig-block.is-hit-2 { --squash: 0.88; }
-.pig-block.is-hit-3 { --squash: 0.82; }
-.pig-block.is-hit-4 { --squash: 0.76; }
-.pig-block.is-hit-5 { --squash: 0.62; animation-name: piggy-squash-hard; }
+.pig-block.is-hit-2 { --squash: 0.9; }
+.pig-block.is-hit-3 { --squash: 0.86; }
+.pig-block.is-hit-4 { --squash: 0.82; }
+.pig-block.is-hit-5 { --squash: 0.76; }
+.pig-block.is-hit-5 .pig-art { animation-name: piggy-squash-hard; }
+@keyframes piggy-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.012, 1.04); }
+}
 @keyframes piggy-squash {
   0% { transform: scale(1, 1); }
-  35% { transform: scale(1.08, var(--squash, 0.86)); }
+  35% { transform: scale(1.022, var(--squash, 0.9)); }
   100% { transform: scale(1, 1); }
 }
 @keyframes piggy-squash-hard {
   0% { transform: scale(1, 1); }
-  40% { transform: scale(1.16, 0.58); }
+  40% { transform: scale(1.04, 0.8); }
   100% { transform: scale(1, 1); }
 }
 
@@ -385,9 +356,7 @@ button.news-row:active { background: #f6f6f6; }
   100% { top: 44%; opacity: 0; }
 }
 
-.pig-block.is-harvesting .pig-coin,
-#warehouse .tile.is-harvesting .pig-coin,
-#page-bonus.is-harvesting .page-bonus-hit {
+.pig-block.is-harvesting .pig-coin {
   animation: piggy-float 1.6s ease-in-out infinite;
 }
 @keyframes piggy-float {
@@ -395,8 +364,7 @@ button.news-row:active { background: #f6f6f6; }
   50% { transform: translateY(-10px); }
 }
 
-.pig-block.is-shattered,
-#warehouse .tile.is-shattered .pig-mini {
+.pig-block.is-shattered .pig-art {
   animation: piggy-shatter 0.7s ease-out forwards;
 }
 @keyframes piggy-shatter {
@@ -421,18 +389,19 @@ button.news-row:active { background: #f6f6f6; }
 
 @media (prefers-reduced-motion: reduce) {
   .pig-block,
-  .pig-block.is-feeding,
-  .pig-block.is-full,
+  .pig-art,
+  .pig-block.is-feeding .pig-art,
+  .pig-block.is-full .pig-art,
   .pig-block.is-harvesting,
-  .pig-block.is-hit-1,
-  .pig-block.is-hit-2,
-  .pig-block.is-hit-3,
-  .pig-block.is-hit-4,
-  .pig-block.is-hit-5,
-  .pig-block.is-shattered,
+  .pig-block.is-hit-1 .pig-art,
+  .pig-block.is-hit-2 .pig-art,
+  .pig-block.is-hit-3 .pig-art,
+  .pig-block.is-hit-4 .pig-art,
+  .pig-block.is-hit-5 .pig-art,
+  .pig-block.is-shattered .pig-art,
   .pig-coin,
   .pig-coin.is-dropping,
-  .page-bonus-hit,
+  .claim-go.is-ready:not(:disabled) .ins-ring,
   .invite-wait-bar::after {
     animation: none !important;
     transform: none !important;
@@ -448,9 +417,10 @@ button.news-row:active { background: #f6f6f6; }
 }
 
 html.reduce-motion .pig-block,
+html.reduce-motion .pig-art,
 html.reduce-motion .pig-coin,
 html.reduce-motion .pig-coin.is-dropping,
-html.reduce-motion .page-bonus-hit {
+html.reduce-motion .claim-go.is-ready .ins-ring {
   animation: none !important;
   transform: none !important;
 }
