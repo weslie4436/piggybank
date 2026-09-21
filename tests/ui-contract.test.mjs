@@ -131,14 +131,15 @@ test("door.js drops one 10-yuan placeholder coin after the previous coin is gone
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
 });
 
-test("piggy.css feed coins are placeholder boxes, not coin artwork", () => {
+test("piggy.css feed coins use the cutout coin artwork", () => {
   const css = read("piggy.css");
   assert.match(css, /\.pig-coin\.is-dropping/);
   assert.match(css, /@keyframes piggy-feed-in/);
   const drop = css.match(/\.pig-coin\.is-dropping\s*\{[\s\S]*?\}/);
   assert.ok(drop, "dropping coin rule missing");
+  assert.match(drop[0], /coin\.png/);
   assert.doesNotMatch(drop[0], /coin\.jpg/);
-  assert.match(drop[0], /border-radius:\s*21px/);
+  assert.doesNotMatch(drop[0], /var\(--card\)/);
 });
 
 test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
@@ -163,7 +164,7 @@ test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
 
 test("index.html references the user coin artwork", () => {
   const html = read("index.html");
-  assert.match(html, /\.\/icons\/coin\.jpg/);
+  assert.match(html, /\.\/icons\/coin\.png/);
 });
 
 test("index.html uses the user pig artwork on the piggy stage", () => {
