@@ -39,27 +39,24 @@
 
   function openNote() {
     if (!actBody) return;
+    const head = document.getElementById("actTitle");
+    if (head) head.textContent = "說明";
     actBody.innerHTML = "";
-    const p = document.createElement("p");
-    p.className = "ex-note";
-    const amount = exchange && exchange.requested_amount != null ? exchange.requested_amount : "";
-    const child = exchange && exchange.child_note ? exchange.child_note : "";
-    p.textContent = "兌換 " + amount + " 元" + (child ? " · " + child : "");
-    const label = document.createElement("label");
-    label.textContent = "家長備註";
-    label.setAttribute("for", "parent-note");
-    const input = document.createElement("input");
-    input.id = "parent-note";
-    input.maxLength = 80;
-    input.placeholder = "備註";
     const err = document.createElement("p");
     err.className = "err";
     err.id = "exErr";
-    actBody.appendChild(p);
+    const row = document.createElement("div");
+    row.className = "apple-row";
+    const input = document.createElement("input");
+    input.id = "parent-note";
+    input.maxLength = 80;
+    input.setAttribute("aria-label", "說明");
+    input.autocomplete = "off";
+    row.appendChild(input);
     actBody.appendChild(err);
-    actBody.appendChild(label);
-    actBody.appendChild(input);
+    actBody.appendChild(row);
     if (actMask) actMask.hidden = false;
+    window.setTimeout(function () { input.focus(); }, 50);
   }
 
   async function resolve() {
@@ -77,7 +74,7 @@
     }
     exchange = x.j;
     if (hey) hey.textContent = "兌換 " + exchange.requested_amount + " 元";
-    if (statusEl) statusEl.textContent = exchange.child_note || "父母核准";
+    if (statusEl) statusEl.textContent = "父母核准";
   }
 
   async function approve() {
@@ -86,7 +83,7 @@
     const err = document.getElementById("exErr");
     const note = ((noteEl && noteEl.value) || "").trim();
     if (!note) {
-      if (err) err.textContent = "請填備註";
+      if (err) err.textContent = "請填說明";
       return;
     }
     if (typed.length !== NEED) {
@@ -94,6 +91,7 @@
       return;
     }
     busy = true;
+    if (actMask) actMask.hidden = true;
     startWait();
     try {
       const x = await window.FamiGate.api("/api/exchange/approve", "", {
@@ -108,18 +106,17 @@
         window.setTimeout(function () { if (dotsEl) dotsEl.classList.remove("is-bad"); }, 400);
         typed = "";
         paintDots();
-        if (err) err.textContent = (x.j && x.j.message) || "請再試一次";
         if (statusEl) statusEl.textContent = (x.j && x.j.message) || "PIN 不對";
         busy = false;
         return;
       }
-      if (actMask) actMask.hidden = true;
-      if (statusEl) statusEl.textContent = "已核准，找零 " + (x.j.change != null ? x.j.change : x.j.change_amount || 0) + " 元";
+      if (statusEl) statusEl.textContent = "已核准";
       if (hey) hey.textContent = "完成";
       if (padEl) padEl.classList.add("is-off");
+      if (waitEl) waitEl.hidden = true;
     } catch (e) {
       stopWait();
-      if (err) err.textContent = "家裡還沒開";
+      if (statusEl) statusEl.textContent = "家裡還沒開";
     } finally {
       busy = false;
     }

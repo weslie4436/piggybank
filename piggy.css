@@ -49,6 +49,16 @@
 .piggy-overview .money-hero {
   width: 100%;
 }
+button.money-hero {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+}
 .money-hero {
   margin: 8px 0 0;
   color: var(--ink);
@@ -285,6 +295,16 @@ button.news-row:active { background: #f6f6f6; }
 #exchange-tray {
   padding: 8px 4px 16px;
   min-height: 120px;
+}
+#exchange-tray .money-hero {
+  margin: 4px 0 0;
+  font-size: clamp(36px, 9vw, 56px);
+}
+#exchange-tray .gate-pad {
+  margin-top: 12px;
+}
+#exchange-tray .gate-pad .ins-icon {
+  align-self: center;
 }
 .ex-stage {
   display: flex;

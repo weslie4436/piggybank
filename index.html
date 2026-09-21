@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="./app.css?v=2"/>
-<link rel="stylesheet" href="./piggy.css?v=12"/>
+<link rel="stylesheet" href="./piggy.css?v=13"/>
 <script src="./config.js?v=1789926384"></script>
 <script>
 (function () {
@@ -124,7 +124,6 @@
       <div class="mode-bar" id="mode-bar">
         <button type="button" class="mode-btn is-on" data-mode="bank">銀行</button>
         <button type="button" class="mode-btn" data-mode="ledger">紀錄</button>
-        <button type="button" class="mode-btn" data-mode="spend">消費</button>
       </div>
     </div>
   </div>
@@ -139,7 +138,9 @@
       </div>
     </section>
     <section class="piggy-overview" id="pig-overview">
-      <p class="money-hero" id="ovTotal"><span class="money-num" id="ovNum">0</span></p>
+      <button type="button" class="money-hero" id="ovTotal" aria-label="消費">
+        <span class="money-num" id="ovNum">0</span>
+      </button>
     </section>
     <div class="pig-allowance" id="pig-allowance">
       <button type="button" class="ins-icon claim-go" id="claim-apply" disabled aria-label="領取零用錢">
@@ -179,7 +180,7 @@
       <button type="button" class="batch-tag-close" id="exClose" aria-label="關閉">×</button>
     </div>
     <div id="exchange-tray"></div>
-    <button type="button" class="tag-apply" id="exApply"><span class="tag-apply-face">確認</span></button>
+    <button type="button" class="tag-apply" id="exApply" hidden><span class="tag-apply-face">確認</span></button>
   </div>
 </div>
 <div class="ask-mask" id="askMask" hidden>
@@ -197,6 +198,6 @@
   <button type="button" class="invite-go" id="home-installed">我已加入</button>
 </div>
 <script src="./gate.js?v=2"></script>
-<script src="./door.js?v=16"></script>
+<script src="./door.js?v=17"></script>
 </body>
 </html>

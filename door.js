@@ -18,6 +18,7 @@
   const homeHead = document.getElementById("home-head");
   const rail = document.getElementById("photo-rail");
   const pigBlock = document.getElementById("pig-block");
+  const ovTotal = document.getElementById("ovTotal");
   const claimBtn = document.getElementById("claim-apply");
   const ledger = document.getElementById("ledger");
   const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.8l.6-1.3h3.6l.6 1.3 1.6.7 1.4-.5 2.5 2.5-.5 1.4.7 1.6 1.3.6v3.6l-1.3.6-.7 1.6.5 1.4-2.5 2.5-1.4-.5-1.6.7-.6 1.3h-3.6l-.6-1.3-1.6-.7-1.4.5-2.5-2.5.5-1.4-.7-1.6-1.3-.6v-3.6l1.3-.6.7-1.6-.5-1.4L6.6 4l1.4.5 1.6-.7z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><circle cx="12" cy="11.9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
@@ -52,11 +53,8 @@
   let snapshot = null;
   let exStage = "";
   let exAmount = 0;
-  let exNote = "";
-  let exPicks = [];
-  let exPickIds = [];
-  let exHits = 0;
-  let exPreview = null;
+  let exToken = "";
+  let exSettled = false;
   let exPoll = 0;
   let paintedTotal = 0;
   let feedToken = 0;
@@ -903,7 +901,8 @@
     const pig = snapshot && snapshot.active_pig;
     if (pigBlock) {
       pigBlock.classList.toggle("is-harvesting", harvestable() > 0);
-      if (feeding && animate) playFeedCoins(feedAmount);
+      if (feeding && animate && feedAmount > 0) playFeedCoins(feedAmount);
+      if (feeding && animate && feedAmount < 0) bouncePig();
     }
     const layer = document.querySelector("#active-pig .pig-coins");
     if (layer && harvestable() > 0 && !layer.querySelector(".pig-coin:not(.is-dropping)")) {
@@ -978,19 +977,15 @@
       const records = insButton("rail-ledger", LEDGER, "紀錄");
       records.dataset.mode = "ledger";
       records.addEventListener("click", function () { pickTab("ledger"); });
-      const spend = insButton("rail-spend", SPEND, "消費");
-      spend.dataset.mode = "spend";
-      spend.addEventListener("click", function () { pickTab("spend"); });
       rail.appendChild(bank);
       rail.appendChild(records);
-      rail.appendChild(spend);
     }
     paintRailModes();
   }
 
   function paintRailModes() {
     if (!rail) return;
-    rail.querySelectorAll(".rail-bank, .rail-ledger, .rail-spend").forEach(function (el) {
+    rail.querySelectorAll(".rail-bank, .rail-ledger").forEach(function (el) {
       const on = el.dataset.mode === hostTab;
       el.classList.toggle("is-off", !on);
       el.setAttribute("aria-pressed", on ? "true" : "false");
@@ -1056,10 +1051,6 @@
   }
 
   function pickTab(tab) {
-    if (tab === "spend") {
-      openExchange();
-      return;
-    }
     hostTab = tab || "bank";
     paintModes();
     if (hostTab === "ledger") loadLedger();
@@ -1118,16 +1109,27 @@
   }
 
   function closeExchange() {
+    const token = exToken;
+    const shouldCancel = !!(token && exStage === "qr" && !exSettled);
     const mask = document.getElementById("exchange-sheet");
     if (mask) mask.hidden = true;
     exStage = "";
-    exPicks = [];
-    exPickIds = [];
-    exHits = 0;
-    exPreview = null;
+    exAmount = 0;
+    exToken = "";
+    exSettled = false;
     if (exPoll) {
       window.clearInterval(exPoll);
       exPoll = 0;
+    }
+    if (shouldCancel) {
+      api("/api/exchange/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ x: token }),
+        timeout: 8000,
+      }).then(function () {
+        if (!busy) loadState(false);
+      });
     }
   }
 
@@ -1135,7 +1137,71 @@
     const btn = document.getElementById("exApply");
     const face = btn && (btn.querySelector(".tag-apply-face") || btn);
     if (face) face.textContent = text;
-    if (btn) btn.hidden = text === "";
+    if (btn) btn.hidden = !text;
+  }
+
+  function collectPickIds() {
+    const pig = snapshot && snapshot.active_pig;
+    return pig && pig.id ? [pig.id] : [];
+  }
+
+  function amountPad(host, onConfirm) {
+    const show = document.createElement("p");
+    show.className = "money-hero";
+    const num = document.createElement("span");
+    num.className = "money-num";
+    num.textContent = "0";
+    show.appendChild(num);
+    const err = document.createElement("p");
+    err.className = "err";
+    err.id = "exErr";
+    const pad = document.createElement("div");
+    pad.className = "gate-pad act-pin";
+    pad.setAttribute("role", "group");
+    pad.setAttribute("aria-label", "金額");
+    let digits = "";
+    function value() {
+      return Number(digits) || 0;
+    }
+    function paint() {
+      const n = value();
+      num.textContent = String(n);
+      exAmount = n;
+      const bag = pad.querySelector(".ex-bag");
+      if (bag) bag.classList.toggle("is-live", n >= 1);
+    }
+    function add(ch) {
+      if (digits.length >= 7) return;
+      if (digits === "0") digits = "";
+      digits += ch;
+      paint();
+    }
+    ["1", "2", "3", "4", "5", "6", "7", "8", "9", "bag", "0", "del"].forEach(function (ch) {
+      if (ch === "bag") {
+        const bag = insButton("ex-bag", SPEND, "確認");
+        bag.addEventListener("click", function () { onConfirm(value(), err); });
+        pad.appendChild(bag);
+        return;
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "gate-key" + (ch === "del" ? " gate-del" : "");
+      btn.textContent = ch === "del" ? "⌫" : ch;
+      if (ch === "del") btn.setAttribute("aria-label", "刪除");
+      btn.addEventListener("click", function () {
+        if (ch === "del") {
+          digits = digits.slice(0, -1);
+          paint();
+          return;
+        }
+        add(ch);
+      });
+      pad.appendChild(btn);
+    });
+    paint();
+    host.appendChild(show);
+    host.appendChild(err);
+    host.appendChild(pad);
   }
 
   function openExchange() {
@@ -1147,151 +1213,57 @@
     tray.innerHTML = "";
     exStage = "form";
     exAmount = 0;
-    exNote = "";
-    exPicks = [];
-    exPickIds = [];
-    const err = document.createElement("p");
-    err.className = "err";
-    err.id = "exErr";
-    const amount = document.createElement("input");
-    amount.type = "number";
-    amount.min = "1";
-    amount.placeholder = "金額";
-    amount.inputMode = "numeric";
-    const note = document.createElement("input");
-    note.maxLength = 80;
-    note.placeholder = "說明";
-    tray.appendChild(err);
-    const aLabel = document.createElement("label");
-    aLabel.textContent = "要花多少";
-    tray.appendChild(aLabel);
-    tray.appendChild(amount);
-    const nLabel = document.createElement("label");
-    nLabel.textContent = "說明";
-    tray.appendChild(nLabel);
-    tray.appendChild(note);
-    amount.addEventListener("input", function () { exAmount = Number(amount.value) || 0; });
-    note.addEventListener("input", function () { exNote = (note.value || "").trim(); });
-    exApplyFace("確認");
+    exToken = "";
+    exSettled = false;
+    exApplyFace("");
+    amountPad(tray, function (n, err) {
+      if (busy) return;
+      if (n < 1) {
+        if (err) err.textContent = "請輸入金額";
+        return;
+      }
+      if (!snapshot || !snapshot.active_pig) {
+        if (err) err.textContent = "還沒有撲滿";
+        return;
+      }
+      reserveNow(err);
+    });
     if (mask) mask.hidden = false;
   }
 
-  function paintKnock() {
-    const tray = document.getElementById("exchange-tray");
-    const title = document.getElementById("exTitle");
-    if (title) title.textContent = "敲撲滿";
-    if (!tray) return;
-    tray.innerHTML = "";
-    const pig = snapshot && snapshot.active_pig;
-    const note = document.createElement("p");
-    note.className = "ex-note";
-    note.textContent = "點小豬，敲 5 下";
-    tray.appendChild(note);
-    const hits = document.createElement("p");
-    hits.className = "ex-note";
-    hits.id = "exHits";
-    hits.textContent = "0 / 5 下";
-    tray.appendChild(hits);
-    const stage = document.createElement("div");
-    stage.className = "pig-block";
-    stage.id = "ex-block";
-    const art = document.createElement("img");
-    art.className = "pig-art";
-    art.src = "./icons/pig.png?v=3";
-    art.alt = "";
-    const coins = document.createElement("span");
-    coins.className = "pig-coins";
-    stage.appendChild(art);
-    stage.appendChild(coins);
-    stage.addEventListener("click", function () { knockOnce(stage); });
-    tray.appendChild(stage);
-    exHits = 0;
-    exApplyFace("");
-  }
-
-  function knockOnce(stage) {
-    if (exStage !== "knock") return;
-    if (exHits >= 5) return;
-    exHits += 1;
-    ["is-hit-1", "is-hit-2", "is-hit-3", "is-hit-4", "is-hit-5"].forEach(function (name, idx) {
-      stage.classList.toggle(name, exHits === idx + 1);
-    });
-    const hits = document.getElementById("exHits");
-    if (hits) hits.textContent = exHits + " / 5 下";
-    if (exHits === 5) {
-      spawnCoins(stage, 6);
-      window.setTimeout(function () { afterKnock(); }, reduceMotion() ? 80 : 420);
-    }
-  }
-
-  async function afterKnock() {
-    await showPreview();
-  }
-
-  async function showPreview() {
-    const tray = document.getElementById("exchange-tray");
-    const title = document.getElementById("exTitle");
-    if (title) title.textContent = "確認消費";
-    const ids = collectPickIds();
-    const x = await api("/api/exchange/preview", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: exAmount, pig_ids: ids }),
-      timeout: 15000,
-    });
-    if (!x.res || !x.res.ok || !x.j) {
-      const err = document.createElement("p");
-      err.className = "err";
-      err.textContent = (x.j && x.j.message) || "這筆消費還不能確認";
-      if (tray) {
-        tray.innerHTML = "";
-        tray.appendChild(err);
+  async function reserveNow(err) {
+    if (busy) return;
+    busy = true;
+    try {
+      const x = await api("/api/exchange/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: exAmount,
+          child_note: "消費",
+          pig_ids: collectPickIds(),
+        }),
+        timeout: 15000,
+      });
+      if (!x.res || !x.res.ok || !x.j) {
+        if (err) err.textContent = (x.j && x.j.message) || "還沒能產生 QR";
+        return;
       }
-      exApplyFace("");
-      return;
-    }
-    exPreview = x.j;
-    exStage = "confirm";
-    if (!tray) return;
-    tray.innerHTML = "";
-    const change = document.createElement("p");
-    change.className = "ex-note";
-    change.textContent = "錢包會剩下 " + yen(x.j.change_amount);
-    tray.appendChild(change);
-    exApplyFace("確認");
-  }
-
-  function collectPickIds() {
-    if (exPreview && exPreview.pig_ids) return exPreview.pig_ids;
-    const pig = snapshot && snapshot.active_pig;
-    return pig && pig.id ? [pig.id] : [];
-  }
-
-  async function reserveNow() {
-    const ids = collectPickIds();
-    const x = await api("/api/exchange/reserve", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        amount: exAmount,
-        child_note: exNote,
-        pig_ids: ids,
-      }),
-      timeout: 15000,
-    });
-    const tray = document.getElementById("exchange-tray");
-    if (!x.res || !x.res.ok || !x.j) {
-      if (tray) {
-        tray.innerHTML = "";
-        const err = document.createElement("p");
-        err.className = "err";
-        err.textContent = (x.j && x.j.message) || "還沒能產生 QR";
-        tray.appendChild(err);
+      const mask = document.getElementById("exchange-sheet");
+      if (exStage !== "form" || !mask || mask.hidden) {
+        api("/api/exchange/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ x: x.j.token }),
+          timeout: 8000,
+        });
+        return;
       }
-      return;
+      exStage = "qr";
+      paintQr(x.j);
+    } finally {
+      busy = false;
     }
-    exStage = "qr";
-    paintQr(x.j);
   }
 
   function paintQr(result) {
@@ -1300,6 +1272,7 @@
     if (title) title.textContent = "請給父母掃";
     if (!tray) return;
     tray.innerHTML = "";
+    exToken = result.token || "";
     const img = document.createElement("img");
     img.className = "ex-qr";
     img.alt = "消費 QR";
@@ -1307,9 +1280,8 @@
     tray.appendChild(img);
     const note = document.createElement("p");
     note.className = "ex-note";
-    note.textContent = "等待父母核准";
+    note.textContent = "尚未扣款，關閉即可反悔";
     tray.appendChild(note);
-    exApplyFace("");
     startPoll(result.id);
   }
 
@@ -1321,41 +1293,17 @@
       if (x.j.status === "completed") {
         window.clearInterval(exPoll);
         exPoll = 0;
+        exSettled = true;
         closeExchange();
         await loadState(true);
       } else if (x.j.status === "cancelled" || x.j.status === "expired") {
         window.clearInterval(exPoll);
         exPoll = 0;
+        exSettled = true;
         closeExchange();
         await loadState(false);
       }
     }, 1600);
-  }
-
-  async function onExApply() {
-    if (busy) return;
-    if (exStage === "form") {
-      const err = document.getElementById("exErr");
-      if (exAmount < 1) {
-        if (err) err.textContent = "請填金額";
-        return;
-      }
-      if (!exNote) {
-        if (err) err.textContent = "請填說明";
-        return;
-      }
-      if (!snapshot || !snapshot.active_pig) {
-        if (err) err.textContent = "還沒有撲滿";
-        return;
-      }
-      exStage = "knock";
-      paintKnock();
-      return;
-    }
-    if (exStage === "confirm") {
-      busy = true;
-      try { await reserveNow(); } finally { busy = false; }
-    }
   }
 
   function bindMaskClose(maskId, closeFn) {
@@ -1588,8 +1536,12 @@
     const askMask = document.getElementById("askMask");
     if (askMask) window.FamiGate.lockSheetPage(askMask);
   }
-  const exApply = document.getElementById("exApply");
-  if (exApply) exApply.addEventListener("click", onExApply);
+  if (ovTotal) {
+    ovTotal.addEventListener("click", function () {
+      if (busy || !ready) return;
+      openExchange();
+    });
+  }
 
   const askNo = document.getElementById("askNo");
   const askOk = document.getElementById("askOk");

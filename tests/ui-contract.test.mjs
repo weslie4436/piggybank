@@ -25,7 +25,7 @@ test("index.html first mode label is 銀行", () => {
   assert.ok(first, "first mode button missing");
   assert.equal(first[1].trim(), "銀行");
   assert.match(bar[0], />紀錄</);
-  assert.match(bar[0], />消費</);
+  assert.doesNotMatch(bar[0], />消費</);
   assert.doesNotMatch(bar[0], /倉庫|最愛|帳本|兌換/);
 });
 
@@ -35,7 +35,7 @@ test("index.html has pig product regions", () => {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   assert.match(html, /id="ovNum"/);
-  assert.match(html, /id="ovTotal"/);
+  assert.match(html, /<button[^>]*id="ovTotal"[^>]*aria-label="消費"/);
   assert.doesNotMatch(html, /id="allowClock"|class="allow-clock"/);
   assert.doesNotMatch(html, /class="money-yen"|<span class="money-yen">/);
   assert.doesNotMatch(html, /id="ovKicker"|錢包</);
@@ -51,29 +51,42 @@ test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
   assert.match(html, /id="photo-rail"/);
 });
 
-test("door.js wires 銀行 紀錄 消費 on the shared right menu", () => {
+test("door.js wires 銀行 紀錄 on the shared right menu and spend on the total", () => {
   const js = read("door.js");
   assert.match(js, /rail-bank/);
   assert.match(js, /rail-ledger/);
-  assert.match(js, /rail-spend/);
+  assert.doesNotMatch(js, /rail-spend/);
   assert.match(js, /"銀行"/);
   assert.match(js, /"紀錄"/);
-  assert.match(js, /"消費"/);
+  assert.match(js, /openExchange/);
+  assert.match(js, /ovTotal/);
   assert.match(js, /piggybank\.debug/);
   assert.match(js, /\/api\/debug\/feed/);
   assert.match(js, /ins-icon/);
   const bank = js.match(/insButton\("rail-bank",\s*([^,]+)/);
   const records = js.match(/insButton\("rail-ledger",\s*([^,]+)/);
-  const spend = js.match(/insButton\("rail-spend",\s*([^,]+)/);
-  assert.ok(bank && records && spend, "rail icons missing");
+  assert.ok(bank && records, "rail icons missing");
   assert.equal(bank[1].trim(), "BANK");
   assert.equal(records[1].trim(), "LEDGER");
-  assert.equal(spend[1].trim(), "SPEND");
   assert.match(js, /"gm"/);
   assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
   assert.match(js, /測試加錢/);
   assert.doesNotMatch(js, /rail-feed/);
+});
+
+test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs", () => {
+  const js = read("door.js");
+  const open = js.match(/function amountPad\([\s\S]*?\n  function /);
+  assert.ok(open, "amountPad missing");
+  assert.match(open[0], /gate-pad/);
+  assert.match(open[0], /gate-key/);
+  assert.match(open[0], /insButton\("ex-bag", SPEND, "確認"\)/);
+  assert.doesNotMatch(open[0], /placeholder/);
+  assert.doesNotMatch(js, /paintKnock|knockOnce/);
+  const ex = read("exchange.js");
+  assert.match(ex, /className = "apple-row"/);
+  assert.doesNotMatch(ex, /placeholder = "備註"/);
 });
 
 test("debug 測試加錢 lives in GM功能, not the right rail", () => {
