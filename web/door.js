@@ -70,6 +70,10 @@
   let exPoll = 0;
   let paintedTotal = 0;
   let paintedPig = 0;
+  let feedToken = 0;
+  const FEED_MS = 480;
+  const FEED_BOUNCE_AT = 290;
+  const FEED_SQUASH_MS = 420;
 
   try {
     favs = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || "[]"));
@@ -637,6 +641,51 @@
     }
   }
 
+  function bouncePig() {
+    if (!pigBlock) return;
+    pigBlock.classList.remove("is-feeding");
+    void pigBlock.offsetWidth;
+    pigBlock.classList.add("is-feeding");
+  }
+
+  function playFeedCoins(amount) {
+    const n = Math.max(0, Math.floor(Number(amount || 0) / 10));
+    const layer = document.querySelector("#active-pig .pig-coins");
+    if (!pigBlock || !layer || !n) return;
+    const token = ++feedToken;
+    function dropOne(i) {
+      if (token !== feedToken) return;
+      if (i >= n) {
+        window.setTimeout(function () {
+          if (token === feedToken && pigBlock) pigBlock.classList.remove("is-feeding");
+        }, FEED_SQUASH_MS);
+        return;
+      }
+      const coin = document.createElement("span");
+      coin.className = "pig-coin is-dropping";
+      layer.appendChild(coin);
+      window.setTimeout(function () {
+        if (token !== feedToken) return;
+        bouncePig();
+      }, FEED_BOUNCE_AT);
+      let finished = false;
+      function finish() {
+        if (finished || token !== feedToken) return;
+        finished = true;
+        coin.removeEventListener("animationend", onDone);
+        if (coin.parentNode) coin.remove();
+        dropOne(i + 1);
+      }
+      function onDone(ev) {
+        if (ev && ev.target !== coin) return;
+        finish();
+      }
+      coin.addEventListener("animationend", onDone);
+      window.setTimeout(finish, FEED_MS + 80);
+    }
+    dropOne(0);
+  }
+
   function setPigState(name, on) {
     if (!pigBlock) return;
     pigBlock.classList.toggle(name, !!on);
@@ -695,7 +744,7 @@
     paintedTotal = total;
   }
 
-  function paintActive(animate, feeding) {
+  function paintActive(animate, feeding, feedAmount) {
     const pig = snapshot && snapshot.active_pig;
     const value = pig ? Number(pig.value || 0) : 0;
     const cap = pig ? Number(pig.capacity || 150) : 150;
@@ -710,11 +759,7 @@
     if (progressText) progressText.textContent = value + " / " + cap + " 元";
     if (pigBlock) {
       pigBlock.classList.toggle("is-full", !!(pig && pig.status === "full"));
-      if (feeding && animate) {
-        spawnCoins(pigBlock, 3);
-        setPigState("is-feeding", true);
-        window.setTimeout(function () { setPigState("is-feeding", false); }, 700);
-      }
+      if (feeding && animate) playFeedCoins(feedAmount);
     }
     paintedPig = value;
   }
@@ -1023,9 +1068,10 @@
     const prev = snapshot && snapshot.revision;
     snapshot = x.j;
     if (snapshot.theme) applyTheme(snapshot.theme);
+    const added = Number(snapshot.total || 0) - paintedTotal;
     const animate = shouldAnimate(snapshot.revision) && feeding;
     paintOverview(animate);
-    paintActive(animate, feeding);
+    paintActive(animate, feeding, added);
     paintClaim();
     paintWarehouse();
     showRail();
@@ -1314,11 +1360,6 @@
         window.clearInterval(exPoll);
         exPoll = 0;
         closeExchange();
-        if (shouldAnimate(x.j.revision)) {
-          spawnCoins(pigBlock, 4);
-          setPigState("is-feeding", true);
-          window.setTimeout(function () { setPigState("is-feeding", false); }, 700);
-        }
         await loadState(true);
         if (changeAmount) paintedPig = paintedPig;
       } else if (x.j.status === "cancelled" || x.j.status === "expired") {
