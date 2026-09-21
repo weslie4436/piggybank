@@ -72,6 +72,25 @@ test("exchange.html has PIN pad and confirm", () => {
   assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
 });
 
+test("door.js drops one 10-yuan placeholder coin after the previous coin is gone", () => {
+  const js = read("door.js");
+  assert.match(js, /function playFeedCoins/);
+  assert.match(js, /Math\.floor\(Number\(amount \|\| 0\) \/ 10\)/);
+  assert.match(js, /pig-coin is-dropping/);
+  assert.match(js, /dropOne\(i \+ 1\)/);
+  assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
+});
+
+test("piggy.css feed coins are placeholder boxes, not coin artwork", () => {
+  const css = read("piggy.css");
+  assert.match(css, /\.pig-coin\.is-dropping/);
+  assert.match(css, /@keyframes piggy-feed-in/);
+  const drop = css.match(/\.pig-coin\.is-dropping\s*\{[\s\S]*?\}/);
+  assert.ok(drop, "dropping coin rule missing");
+  assert.doesNotMatch(drop[0], /coin\.jpg/);
+  assert.match(drop[0], /border-radius:\s*14px/);
+});
+
 test("piggy.css lists feeding, full, harvest, hit, and shatter states", () => {
   const css = read("piggy.css");
   for (const name of [

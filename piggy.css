@@ -119,10 +119,16 @@
   display: flex;
   justify-content: center;
   margin: 28px 0 16px;
+  overflow: visible;
+}
+.pig-stage {
+  position: relative;
+  width: min(220px, 58vw);
+  overflow: visible;
 }
 .pig-block {
   position: relative;
-  width: min(220px, 58vw);
+  width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 28px;
   background: var(--card);
@@ -156,6 +162,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: visible;
 }
 .pig-coin {
   position: absolute;
@@ -164,6 +171,19 @@
   border-radius: 50%;
   background: url("./icons/coin.jpg") center / cover no-repeat;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
+}
+.pig-coin.is-dropping {
+  left: 50%;
+  top: -12%;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  margin: 0;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  filter: none;
+  transform: translateX(-50%);
+  animation: piggy-feed-in 0.48s ease-in forwards;
 }
 
 #pig-progress {
@@ -349,13 +369,11 @@ button.news-row:active { background: #f6f6f6; }
   100% { transform: scale(1, 1); }
 }
 
-.pig-block.is-feeding .pig-coin {
-  animation: piggy-feed-in 0.7s ease-in forwards;
-}
 @keyframes piggy-feed-in {
-  0% { transform: translate(-40px, -120px) scale(0.4); opacity: 0; }
-  40% { opacity: 1; }
-  100% { transform: translate(0, 0) scale(1); opacity: 0; }
+  0% { top: -18%; opacity: 0; }
+  12% { top: -10%; opacity: 1; }
+  60% { top: 34%; opacity: 1; }
+  100% { top: 44%; opacity: 0; }
 }
 
 .pig-block.is-harvesting .pig-coin,
@@ -404,6 +422,7 @@ button.news-row:active { background: #f6f6f6; }
   .pig-block.is-hit-5,
   .pig-block.is-shattered,
   .pig-coin,
+  .pig-coin.is-dropping,
   .page-bonus-hit,
   .invite-wait-bar::after {
     animation: none !important;
@@ -421,6 +440,7 @@ button.news-row:active { background: #f6f6f6; }
 
 html.reduce-motion .pig-block,
 html.reduce-motion .pig-coin,
+html.reduce-motion .pig-coin.is-dropping,
 html.reduce-motion .page-bonus-hit {
   animation: none !important;
   transform: none !important;
