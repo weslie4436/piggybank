@@ -207,6 +207,23 @@ class TestPreviewExchange(ExchangeTestCase):
             lambda: self.service.preview_exchange(151, [pig_id], START),
         )
 
+    def test_preview_allows_full_pig_with_unharvested_yield(self):
+        self.claim(150)
+        pig_id = self.full_pigs()[0]["id"]
+        self.execute(
+            """
+            UPDATE pigs
+            SET status='full', pending_yield=3
+            WHERE id=?
+            """,
+            (pig_id,),
+        )
+
+        result = self.service.preview_exchange(30, [pig_id], START)
+
+        self.assertEqual(150, result["total_pig_value"])
+        self.assertEqual([pig_id], result["pig_ids"])
+
 
 class TestReserveExchange(ExchangeTestCase):
     def test_reserve_uses_stored_rows_without_running_accrual(self):
@@ -225,6 +242,29 @@ class TestReserveExchange(ExchangeTestCase):
         self.assertEqual("reserved", pig["status"])
         self.assertEqual(0, pig["pending_yield"])
         self.assertEqual(before + 1, result["revision"])
+
+    def test_reserve_collapses_full_pigs_into_one_wallet(self):
+        self.claim(150)
+        keeper = self.full_pigs()[0]["id"]
+        extra = "full-extra-1"
+        self.execute(
+            """
+            INSERT INTO pigs (
+              id, tier_id, status, capacity, value, hit_count,
+              daily_yield, yield_cap, pending_yield, created_at
+            )
+            VALUES (?, 'basic-150', 'full', 150, 150, 5, 1, 3, 0, ?)
+            """,
+            (extra, START.isoformat()),
+        )
+
+        result = self.service.reserve_exchange(200, "消費", [extra], START)
+
+        self.assertEqual(300, result["total_pig_value"])
+        self.assertEqual([keeper], result["pig_ids"])
+        pig = self.rows("SELECT * FROM pigs WHERE id=?", (keeper,))[0]
+        self.assertEqual("reserved", pig["status"])
+        self.assertEqual(300, pig["value"])
 
     def test_reserve_revalidates_if_pig_changes_after_its_own_preview(self):
         self.claim(150)

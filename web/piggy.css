@@ -56,7 +56,6 @@ button.money-hero {
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  font: inherit;
   color: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -299,6 +298,9 @@ button.news-row:active { background: #f6f6f6; }
   padding: 8px 4px 16px;
   min-height: 120px;
 }
+#exchange-tray .err {
+  text-align: center;
+}
 #exchange-tray .money-hero {
   margin: 4px 0 0;
   font-size: clamp(36px, 9vw, 56px);
@@ -306,8 +308,20 @@ button.news-row:active { background: #f6f6f6; }
 #exchange-tray .gate-pad {
   margin-top: 12px;
 }
-#exchange-tray .gate-pad .ins-icon {
-  align-self: center;
+#exchange-tray .gate-key.ex-bag {
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+#exchange-tray .gate-key.ex-bag svg {
+  width: 28px;
+  height: 28px;
+  display: block;
+  pointer-events: none;
+}
+#exchange-tray .gate-key.ex-bag:disabled {
+  opacity: 0.35;
+  pointer-events: none;
 }
 .ex-stage {
   display: flex;

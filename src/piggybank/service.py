@@ -11,7 +11,6 @@ from piggybank.schedule import TAIPEI, eligible_periods, next_allowance_at
 from piggybank.store import Store
 
 DEFAULT_ALLOWANCE_AMOUNT = 30
-LIVE_PIG_STATUSES = ("growing", "reserved")
 
 
 class DomainError(Exception):
@@ -148,17 +147,12 @@ class PiggyService:
             if pig is not None and pig["status"] == "reserved":
                 raise DomainError(
                     "pig_reserved",
-                    "這隻撲滿正在兌換中",
+                    "這筆消費還在等待父母核准",
                 )
-            if pig is None or pig["status"] not in LIVE_PIG_STATUSES:
+            if pig is None or pig["status"] not in ("growing", "full"):
                 raise DomainError(
                     "pig_not_breakable",
-                    "這隻撲滿目前不能敲",
-                )
-            if pig["pending_yield"] > 0:
-                raise DomainError(
-                    "harvest_required",
-                    "請先收取這隻撲滿的收益",
+                    "目前無法消費",
                 )
             selected.append(pig)
 
@@ -513,15 +507,33 @@ class PiggyService:
         note = child_note.strip()
         if not note or len(note) > 80:
             raise ValueError("child_note must contain 1 to 80 characters")
-        self.preview_exchange(amount, pig_ids, now)
-
         current = now.astimezone(TAIPEI)
         timestamp = current.isoformat()
+        with self.store.transaction() as conn:
+            reserved = conn.execute(
+                """
+                SELECT 1 FROM pigs WHERE status='reserved' LIMIT 1
+                """
+            ).fetchone()
+            if reserved is None and self._collapse_to_one_pig(conn, timestamp):
+                Store.bump_revision(conn)
+                live = conn.execute(
+                    """
+                    SELECT id FROM pigs
+                    WHERE status IN ('growing','full')
+                    ORDER BY created_at, id
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if live is not None:
+                    pig_ids = [live["id"]]
+        self.preview_exchange(amount, pig_ids, now)
         expires_at = (current + timedelta(minutes=15)).isoformat()
         exchange_id = uuid4().hex
         token = new_token()
         with self.store.transaction() as conn:
             preview = self._preview_in_transaction(conn, amount, pig_ids)
+            stored_ids = list(preview["pig_ids"])
             conn.execute(
                 """
                 INSERT INTO exchanges (
@@ -537,7 +549,7 @@ class PiggyService:
                     amount,
                     note,
                     json.dumps(
-                        pig_ids,
+                        stored_ids,
                         ensure_ascii=False,
                         separators=(",", ":"),
                     ),
@@ -547,12 +559,12 @@ class PiggyService:
                     timestamp,
                 ),
             )
-            for pig_id in pig_ids:
+            for pig_id in stored_ids:
                 conn.execute(
                     """
                     UPDATE pigs
                     SET status='reserved', reserved_exchange_id=?
-                    WHERE id=? AND status='growing'
+                    WHERE id=? AND status IN ('growing','full')
                     """,
                     (exchange_id, pig_id),
                 )
@@ -565,7 +577,7 @@ class PiggyService:
                 "requested_amount": amount,
                 "total_pig_value": preview["total_pig_value"],
                 "change_amount": preview["change_amount"],
-                "pig_ids": list(pig_ids),
+                "pig_ids": stored_ids,
                 "bonus_pages_at_risk": preview["bonus_pages_at_risk"],
             }
 
@@ -1080,14 +1092,15 @@ class PiggyService:
                 """
                 SELECT COALESCE(SUM(value), 0) AS total
                 FROM pigs
-                WHERE status IN ('growing','reserved')
+                WHERE status IN ('growing','full','reserved')
                 """
             ).fetchone()["total"]
             active = conn.execute(
                 """
                 SELECT * FROM pigs
-                WHERE status IN ('growing','reserved')
-                ORDER BY created_at, id
+                WHERE status IN ('growing','full','reserved')
+                ORDER BY CASE status WHEN 'growing' THEN 0 ELSE 1 END,
+                         created_at, id
                 LIMIT 1
                 """
             ).fetchone()
