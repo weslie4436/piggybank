@@ -856,18 +856,6 @@
     }
   }
 
-  function pad2(n) {
-    return String(n).padStart(2, "0");
-  }
-
-  function clockText(ms) {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const hours = Math.floor(total / 3600);
-    const mins = Math.floor((total % 3600) / 60);
-    const secs = total % 60;
-    return pad2(hours) + ":" + pad2(mins) + ":" + pad2(secs);
-  }
-
   function stopAllowClock() {
     if (allowTimer) {
       window.clearInterval(allowTimer);
@@ -877,24 +865,16 @@
 
   function startAllowClock(serverNowIso, nextIso) {
     stopAllowClock();
-    const clock = document.getElementById("allowClock");
-    if (!clock) return;
     allowServerNow = Date.parse(serverNowIso || "");
     allowNext = Date.parse(nextIso || "");
     allowOrigin = Date.now();
     function tick() {
-      if (!allowNext || Number.isNaN(allowNext) || Number.isNaN(allowServerNow)) {
-        clock.textContent = "—";
-        return;
-      }
+      if (!allowNext || Number.isNaN(allowNext) || Number.isNaN(allowServerNow)) return;
       const left = allowNext - (allowServerNow + (Date.now() - allowOrigin));
       if (left <= 0) {
-        clock.textContent = "00:00:00";
         stopAllowClock();
         if (!busy) loadState(false);
-        return;
       }
-      clock.textContent = clockText(left);
     }
     tick();
     allowTimer = window.setInterval(tick, 1000);
@@ -905,7 +885,6 @@
     const periods = (snapshot && snapshot.claimable_periods) || [];
     const today = periods.find(function (item) { return item.claim_kind === "on_time"; }) || periods[0];
     const caption = document.getElementById("allowCaption");
-    const clock = document.getElementById("allowClock");
     const ready = !!today;
     claimBtn.hidden = false;
     claimBtn.disabled = !ready;
@@ -915,7 +894,6 @@
       claimBtn.dataset.period = today.period_key;
       claimBtn.setAttribute("aria-label", "領取 " + today.amount + " 元");
       if (caption) caption.textContent = "領取 " + today.amount + " 元";
-      if (clock) clock.textContent = "00:00:00";
       stopAllowClock();
     } else {
       claimBtn.removeAttribute("data-period");
