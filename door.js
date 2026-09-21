@@ -1163,12 +1163,20 @@
     function value() {
       return Number(digits) || 0;
     }
+    function deposit() {
+      return snapshot && typeof snapshot.total === "number" ? snapshot.total : 0;
+    }
     function paint() {
       const n = value();
       num.textContent = String(n);
       exAmount = n;
+      const over = n > deposit();
+      err.textContent = over ? "金額超過存款" : "";
       const bag = pad.querySelector(".ex-bag");
-      if (bag) bag.classList.toggle("is-live", n >= 1);
+      if (bag) {
+        bag.disabled = n < 1 || over;
+        bag.classList.toggle("is-live", n >= 1 && !over);
+      }
     }
     function add(ch) {
       if (digits.length >= 7) return;
@@ -1178,8 +1186,16 @@
     }
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "bag", "0", "del"].forEach(function (ch) {
       if (ch === "bag") {
-        const bag = insButton("ex-bag", SPEND, "確認");
-        bag.addEventListener("click", function () { onConfirm(value(), err); });
+        const bag = document.createElement("button");
+        bag.type = "button";
+        bag.className = "gate-key ex-bag";
+        bag.setAttribute("aria-label", "確認");
+        bag.innerHTML = SPEND;
+        bag.disabled = true;
+        bag.addEventListener("click", function () {
+          if (bag.disabled) return;
+          onConfirm(value(), err);
+        });
         pad.appendChild(bag);
         return;
       }
@@ -1222,13 +1238,15 @@
         if (err) err.textContent = "請輸入金額";
         return;
       }
-      if (!snapshot || !snapshot.active_pig) {
-        if (err) err.textContent = "還沒有撲滿";
+      const total = snapshot && typeof snapshot.total === "number" ? snapshot.total : 0;
+      if (n > total) {
+        if (err) err.textContent = "金額超過存款";
         return;
       }
       reserveNow(err);
     });
     if (mask) mask.hidden = false;
+    loadState(false);
   }
 
   async function reserveNow(err) {

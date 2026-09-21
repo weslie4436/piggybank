@@ -81,9 +81,12 @@ test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs",
   assert.ok(open, "amountPad missing");
   assert.match(open[0], /gate-pad/);
   assert.match(open[0], /gate-key/);
-  assert.match(open[0], /insButton\("ex-bag", SPEND, "確認"\)/);
+  assert.match(open[0], /className = "gate-key ex-bag"/);
+  assert.match(open[0], /金額超過存款/);
+  assert.match(open[0], /bag\.disabled/);
+  assert.doesNotMatch(open[0], /insButton\("ex-bag"/);
   assert.doesNotMatch(open[0], /placeholder/);
-  assert.doesNotMatch(js, /paintKnock|knockOnce/);
+  assert.doesNotMatch(js, /paintKnock|knockOnce|還沒有撲滿/);
   const ex = read("exchange.js");
   assert.match(ex, /className = "apple-row"/);
   assert.doesNotMatch(ex, /placeholder = "備註"/);
@@ -129,6 +132,7 @@ test("pages lock double-tap zoom like the other home-web shells", () => {
   assert.match(css, /button \{[\s\S]*touch-action:\s*manipulation/);
   const piggy = read("piggy.css");
   assert.match(piggy, /button\.money-hero[\s\S]*touch-action:\s*manipulation/);
+  assert.doesNotMatch(piggy, /button\.money-hero[\s\S]{0,220}font:\s*inherit/);
   const gate = read("gate.js");
   assert.match(gate, /function blockWebChrome/);
   assert.match(gate, /gesturechange/);
