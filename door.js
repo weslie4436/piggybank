@@ -32,6 +32,7 @@
   const HEART_RAIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.8v8.4M10 9.4c.6-.7 1.4-1 2-1 1.2 0 2.1.7 2.1 1.8S13.2 12 12 12h-.8C10 12 9.1 12.7 9.1 13.8S10 15.6 12 15.6c.7 0 1.5-.3 2.1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
+  const PERSON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.4" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.2 18.6c.9-3.3 3.2-5 5.8-5s4.9 1.7 5.8 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const FAV_KEY = "piggybank.favs";
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
@@ -102,20 +103,21 @@
   }
 
   function isDebug() {
+    try { return sessionStorage.getItem(DEBUG_KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function setDebug(on) {
     try {
-      const flag = new URLSearchParams(location.search).get("debug");
-      if (flag === "0" || flag === "false") {
-        sessionStorage.removeItem(DEBUG_KEY);
-        return false;
-      }
-      if (flag) {
-        sessionStorage.setItem(DEBUG_KEY, "1");
-        return true;
-      }
-      return sessionStorage.getItem(DEBUG_KEY) === "1";
-    } catch (e) {
-      return false;
-    }
+      if (on) sessionStorage.setItem(DEBUG_KEY, "1");
+      else sessionStorage.removeItem(DEBUG_KEY);
+    } catch (e) {}
+    paintDebugChrome();
+    showRail();
+  }
+
+  function paintDebugChrome() {
+    const row = document.querySelector('.settings-entry[data-job="debug"]');
+    if (row) row.classList.toggle("is-host", isDebug());
   }
 
   function insButton(className, svg, label) {
@@ -344,6 +346,8 @@
     menu.appendChild(gearRow(SCENE, "更換背景", "backdrop", function () { openBackdropCard(); }));
     menu.appendChild(gearRow(COIN, "零用金設定", "allowance", function () { openAllowanceCard(); }));
     menu.appendChild(gearRow(PALETTE, "主題選擇", "theme", function () { openThemeCard(); }));
+    menu.appendChild(gearRow(PERSON, "切換測試", "debug", function () { setDebug(!isDebug()); }));
+    paintDebugChrome();
     toggle.addEventListener("click", function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
