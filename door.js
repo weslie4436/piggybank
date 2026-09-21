@@ -717,14 +717,48 @@
     ensureSettings();
   }
 
-  function rollNumber(el, next) {
-    const to = Math.max(0, Math.round(Number(next) || 0));
-    const from = Number(el.dataset.v || 0) || 0;
-    el.dataset.v = String(to);
-    if (el._roll) {
+  function stopRoll(el) {
+    if (el && el._roll) {
       window.clearInterval(el._roll);
       el._roll = 0;
     }
+  }
+
+  function countByOnes(el, add, durationMs, done) {
+    const n = Math.max(0, Math.round(Number(add) || 0));
+    if (!el || n === 0) {
+      if (done) done();
+      return;
+    }
+    stopRoll(el);
+    if (reduceMotion()) {
+      const to = (Number(el.dataset.v || 0) || 0) + n;
+      el.dataset.v = String(to);
+      el.textContent = String(to);
+      paintedTotal = to;
+      if (done) done();
+      return;
+    }
+    const stepMs = Math.max(16, Math.floor(durationMs / n));
+    let left = n;
+    el._roll = window.setInterval(function () {
+      const cur = (Number(el.dataset.v || 0) || 0) + 1;
+      el.dataset.v = String(cur);
+      el.textContent = String(cur);
+      paintedTotal = cur;
+      left -= 1;
+      if (left <= 0) {
+        stopRoll(el);
+        if (done) done();
+      }
+    }, stepMs);
+  }
+
+  function rollNumber(el, next) {
+    const to = Math.max(0, Math.round(Number(next) || 0));
+    const from = Number(el.dataset.v || 0) || 0;
+    stopRoll(el);
+    el.dataset.v = String(to);
     if (reduceMotion() || from === to) {
       el.textContent = String(to);
       return;
@@ -733,8 +767,7 @@
     el._roll = window.setInterval(function () {
       const left = to - cur;
       if (left === 0) {
-        window.clearInterval(el._roll);
-        el._roll = 0;
+        stopRoll(el);
         el.textContent = String(to);
         return;
       }
@@ -768,16 +801,35 @@
   }
 
   function playFeedCoins(amount) {
-    const n = Math.max(0, Math.floor(Number(amount || 0) / 10));
+    const ovNum = document.getElementById("ovNum");
+    const total = snapshot ? Number(snapshot.total || 0) : 0;
+    const add = Math.max(0, Math.round(Number(amount || 0)));
+    const n = Math.floor(add / 10);
     const layer = document.querySelector("#active-pig .pig-coins");
-    if (!pigBlock || !layer || !n) return;
+    function settle() {
+      if (ovNum) {
+        const cur = Number(ovNum.dataset.v || 0) || 0;
+        countByOnes(ovNum, total - cur, 80, function () {
+          ovNum.textContent = String(total);
+          ovNum.dataset.v = String(total);
+          paintedTotal = total;
+        });
+      } else paintedTotal = total;
+    }
+    if (!pigBlock || !layer || !n) {
+      if (ovNum && add) countByOnes(ovNum, add, FEED_MS, settle);
+      else settle();
+      return;
+    }
     const token = ++feedToken;
+    stopRoll(ovNum);
     function dropOne(i) {
       if (token !== feedToken) return;
       if (i >= n) {
         window.setTimeout(function () {
           if (token === feedToken && pigBlock) pigBlock.classList.remove("is-feeding");
         }, FEED_SQUASH_MS);
+        settle();
         return;
       }
       const coin = document.createElement("span");
@@ -789,12 +841,23 @@
         bouncePig();
       }, FEED_BOUNCE_AT);
       let finished = false;
+      let coinDone = false;
+      let countDone = false;
+      function maybeNext() {
+        if (token !== feedToken) return;
+        if (coinDone && countDone) dropOne(i + 1);
+      }
+      countByOnes(ovNum, 10, FEED_MS, function () {
+        countDone = true;
+        maybeNext();
+      });
       function finish() {
         if (finished || token !== feedToken) return;
         finished = true;
         coin.removeEventListener("animationend", onDone);
         if (coin.parentNode) coin.remove();
-        dropOne(i + 1);
+        coinDone = true;
+        maybeNext();
       }
       function onDone(ev) {
         if (ev && ev.target !== coin) return;
@@ -1024,7 +1087,8 @@
     applyTheme(pickTheme(rememberedTheme()) || snapshot.theme);
     const added = Number(snapshot.total || 0) - paintedTotal;
     const animate = shouldAnimate(snapshot.revision) && feeding;
-    paintOverview(animate);
+    const feedUp = !!(feeding && animate && added > 0);
+    if (!feedUp) paintOverview(animate);
     paintActive(animate, feeding, added);
     paintClaim();
     showRail();

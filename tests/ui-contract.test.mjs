@@ -123,9 +123,11 @@ test("exchange.html has PIN pad and confirm", () => {
 test("door.js drops one 10-yuan placeholder coin after the previous coin is gone", () => {
   const js = read("door.js");
   assert.match(js, /function playFeedCoins/);
-  assert.match(js, /Math\.floor\(Number\(amount \|\| 0\) \/ 10\)/);
+  assert.match(js, /Math\.floor\(add \/ 10\)/);
   assert.match(js, /pig-coin is-dropping/);
   assert.match(js, /dropOne\(i \+ 1\)/);
+  assert.match(js, /countByOnes\(ovNum, 10, FEED_MS/);
+  assert.match(js, /coinDone && countDone/);
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
 });
 
