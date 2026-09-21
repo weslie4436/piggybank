@@ -1213,6 +1213,10 @@
     const stage = document.createElement("div");
     stage.className = "pig-block";
     stage.id = "ex-block";
+    const art = document.createElement("img");
+    art.className = "pig-art";
+    art.src = "./icons/pig.png?v=1";
+    art.alt = "";
     const label = document.createElement("span");
     label.className = "pig-label";
     label.textContent = "基礎撲滿";
@@ -1221,6 +1225,7 @@
     value.textContent = pig ? yen(pig.value) : "—";
     const coins = document.createElement("span");
     coins.className = "pig-coins";
+    stage.appendChild(art);
     stage.appendChild(label);
     stage.appendChild(value);
     stage.appendChild(coins);
