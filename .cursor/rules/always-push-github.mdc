@@ -5,7 +5,12 @@ alwaysApply: true
 
 # 修完就推 Pages
 
-會出現在 GitHub Pages 的 html／js／css／圖示／`config.js`／`?v=`：驗證後 `commit` + `push origin main`。只 commit 不 push = 沒改。不要問要不要推。禁止 PR。
+會出現在 GitHub Pages 的 html／js／css／圖示／`config.js`／`?v=`：驗證後 `commit` + `push origin main`，再把 `web/` 發到 `gh-pages`（Pages 吃的是這個分支，不是 main 根目錄）。只推 main = 線上還是舊門面。不要問要不要推。禁止 PR。
+
+```
+git subtree split --prefix web
+git push origin <sha>:gh-pages
+```
 
 - Pages：https://theoldfathertw.github.io/piggybank/
 - 保險庫：`python -m piggybank vault`（埠 8771）
