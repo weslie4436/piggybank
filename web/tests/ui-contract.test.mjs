@@ -10,7 +10,7 @@ function read(name) {
   return fs.readFileSync(path.join(root, name), "utf8");
 }
 
-test("index.html has home-head, settings gear, and mode-bar", () => {
+test("index.html has home-head, settings gear, and mode names", () => {
   const html = read("index.html");
   assert.match(html, /class="[^"]*home-head/);
   assert.match(html, /class="[^"]*ins-icon[^"]*settings-toggle|class="[^"]*settings-toggle[^"]*ins-icon/);
@@ -34,8 +34,10 @@ test("index.html has pig product regions", () => {
   for (const id of ["active-pig", "pig-allowance", "claim-apply", "exchange-sheet", "ledger"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
-  assert.match(html, /id="ovKicker">錢包</);
-  assert.match(html, /id="ovYield">可收益 0 元</);
+  assert.match(html, /id="ovNum"/);
+  assert.match(html, /id="ovTotal"/);
+  assert.doesNotMatch(html, /id="ovKicker"|錢包</);
+  assert.doesNotMatch(html, /id="ovYield"|可收益/);
   assert.doesNotMatch(html, /id="pig-progress"|id="warehouse"|id="page-bonus"|滿豬數|正在養|基礎撲滿/);
 });
 
@@ -47,8 +49,14 @@ test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
   assert.match(html, /id="photo-rail"/);
 });
 
-test("door.js wires debug-only photo-rail feed on the shared right menu", () => {
+test("door.js wires 銀行 紀錄 消費 on the shared right menu", () => {
   const js = read("door.js");
+  assert.match(js, /rail-bank/);
+  assert.match(js, /rail-ledger/);
+  assert.match(js, /rail-spend/);
+  assert.match(js, /"銀行"/);
+  assert.match(js, /"紀錄"/);
+  assert.match(js, /"消費"/);
   assert.match(js, /piggybank\.debug/);
   assert.match(js, /rail-feed/);
   assert.match(js, /\/api\/debug\/feed/);

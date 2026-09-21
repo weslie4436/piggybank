@@ -28,6 +28,8 @@
   const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.8v8.4M10 9.4c.6-.7 1.4-1 2-1 1.2 0 2.1.7 2.1 1.8S13.2 12 12 12h-.8C10 12 9.1 12.7 9.1 13.8S10 15.6 12 15.6c.7 0 1.5-.3 2.1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
   const PERSON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.4" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.2 18.6c.9-3.3 3.2-5 5.8-5s4.9 1.7 5.8 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const LIST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M6 12h12M6 17h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const GRID = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="13.5" y="5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="5" y="13.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="13.5" y="13.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
   const THEMES = [
@@ -558,9 +560,9 @@
   function layoutStage() {
     if (!stageBg || !hall || stageBg.hidden) return;
     const hallBox = hall.getBoundingClientRect();
-    const tags = document.getElementById("tag-board");
-    const startBox = tags && !tags.hidden ? tags.getBoundingClientRect() : null;
-    const start = startBox ? Math.max(0, startBox.top - hallBox.top) : 180;
+    const head = document.getElementById("home-head");
+    const startBox = head && !head.hidden ? head.getBoundingClientRect() : null;
+    const start = startBox ? Math.max(0, startBox.bottom - hallBox.top) : 180;
     const end = start + 80;
     const fade = "linear-gradient(to bottom, #000 0, #000 " + Math.round(start) + "px, transparent " + Math.round(end) + "px)";
     stageBg.style.height = Math.round(end) + "px";
@@ -683,9 +685,7 @@
 
   function paintOverview(animate) {
     const total = snapshot ? Number(snapshot.total || 0) : 0;
-    const yieldN = harvestable();
     const ovNum = document.getElementById("ovNum");
-    const ovYield = document.getElementById("ovYield");
     if (ovNum) {
       if (animate) rollNumber(ovNum, total);
       else {
@@ -693,7 +693,6 @@
         ovNum.dataset.v = String(total);
       }
     }
-    if (ovYield) ovYield.textContent = "可收益 " + yen(yieldN);
     paintedTotal = total;
   }
 
@@ -788,19 +787,43 @@
 
   function showRail() {
     if (!rail) return;
-    const debugOn = isDebug();
-    if (!debugOn) {
-      rail.hidden = true;
-      rail.innerHTML = "";
-      document.documentElement.classList.remove("has-rail");
-      return;
-    }
     rail.hidden = false;
     document.documentElement.classList.add("has-rail");
-    rail.innerHTML = "";
-    const feed = insButton("rail-feed", COIN, "測試加錢");
-    feed.addEventListener("click", debugFeed);
-    rail.appendChild(feed);
+    if (!rail.dataset.ready) {
+      rail.dataset.ready = "1";
+      const bank = insButton("rail-bank", COIN, "銀行");
+      bank.dataset.mode = "bank";
+      bank.addEventListener("click", function () { pickTab("bank"); });
+      const records = insButton("rail-ledger", LIST, "紀錄");
+      records.dataset.mode = "ledger";
+      records.addEventListener("click", function () { pickTab("ledger"); });
+      const spend = insButton("rail-spend", GRID, "消費");
+      spend.dataset.mode = "spend";
+      spend.addEventListener("click", function () { pickTab("spend"); });
+      rail.appendChild(bank);
+      rail.appendChild(records);
+      rail.appendChild(spend);
+    }
+    let feed = rail.querySelector(".rail-feed");
+    if (isDebug()) {
+      if (!feed) {
+        feed = insButton("rail-feed", COIN, "測試加錢");
+        feed.addEventListener("click", debugFeed);
+        rail.appendChild(feed);
+      }
+    } else if (feed) {
+      feed.remove();
+    }
+    paintRailModes();
+  }
+
+  function paintRailModes() {
+    if (!rail) return;
+    rail.querySelectorAll(".rail-bank, .rail-ledger").forEach(function (el) {
+      const on = el.dataset.mode === hostTab;
+      el.classList.toggle("is-off", !on);
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+    });
   }
 
   async function debugFeed() {
@@ -852,13 +875,13 @@
     hall.classList.toggle("is-mode-ledger", hostTab === "ledger");
     const bar = document.getElementById("mode-bar");
     if (bar) {
-      bar.hidden = false;
       bar.querySelectorAll(".mode-btn").forEach(function (el) {
         el.classList.toggle("is-on", el.dataset.mode === hostTab);
       });
     }
     const tagBoard = document.getElementById("tag-board");
-    if (tagBoard) tagBoard.hidden = false;
+    if (tagBoard) tagBoard.hidden = true;
+    showRail();
   }
 
   function pickTab(tab) {
@@ -872,6 +895,7 @@
   }
 
   function bindModes() {
+    showRail();
     const bar = document.getElementById("mode-bar");
     if (!bar || bar.dataset.bound) return;
     bar.dataset.bound = "1";
