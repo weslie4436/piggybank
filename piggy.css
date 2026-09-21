@@ -185,7 +185,7 @@
   box-shadow: none;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18));
   transform: translateX(-50%);
-  animation: piggy-feed-in 0.48s ease-in forwards;
+  animation: piggy-feed-in 0.32s ease-in forwards;
 }
 
 #pig-progress,
