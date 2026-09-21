@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from piggybank.keys import VaultKeys
+from piggybank.paths import DATA
 from piggybank.qr import qr_svg
 from piggybank.schedule import TAIPEI
 from piggybank.service import DomainError, PiggyService
@@ -327,12 +328,18 @@ def make_server(
                     self._string_field(payload, "display_name"),
                 )
                 token = result["token"]
+                url = (
+                    f"{pages}/index.html?k={quote(token, safe='')}"
+                    f"#k={quote(token, safe='')}"
+                )
+                DATA.mkdir(parents=True, exist_ok=True)
+                (DATA / "personal-url.txt").write_text(
+                    f"{url}\n",
+                    encoding="utf-8",
+                )
                 return {
                     **result,
-                    "url": (
-                        f"{pages}/index.html?k={quote(token, safe='')}"
-                        f"#k={quote(token, safe='')}"
-                    ),
+                    "url": url,
                 }
             if path == "/api/exchange/approve":
                 payload = self._read_json()

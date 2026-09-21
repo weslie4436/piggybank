@@ -21,6 +21,7 @@ class TestParser(unittest.TestCase):
             ("vault", ["vault"]),
             ("setup", ["setup", "--name", "小明"]),
             ("ensure-shortcut", ["ensure-shortcut"]),
+            ("personal-url", ["personal-url"]),
         )
         for name, argv in cases:
             with self.subTest(subcommand=name):

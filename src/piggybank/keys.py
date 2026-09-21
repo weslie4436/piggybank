@@ -124,3 +124,39 @@ class VaultKeys:
             "token": personal_token,
             "reader": self._reader(settings),
         }
+
+    def reissue_personal(self) -> dict:
+        personal_token = new_token()
+        personal_digest = token_hash(personal_token)
+        with self.store.transaction() as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key='child_token_hash'"
+            ).fetchone()
+            if row is None:
+                raise DomainError(
+                    "not_joined",
+                    "還沒完成綁定，請先用邀請連結建立個人頁",
+                )
+            conn.execute(
+                """
+                INSERT INTO settings (key, value)
+                VALUES ('child_token_hash', ?)
+                ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                """,
+                (personal_digest,),
+            )
+            Store.bump_revision(conn)
+            settings = {
+                row["key"]: row["value"]
+                for row in conn.execute(
+                    """
+                    SELECT key, value
+                    FROM settings
+                    WHERE key IN ('display_name', 'theme')
+                    """
+                )
+            }
+        return {
+            "token": personal_token,
+            "reader": self._reader(settings),
+        }

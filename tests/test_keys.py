@@ -103,6 +103,31 @@ class TestVaultKeys(unittest.TestCase):
         self.assertNotIn("token", door)
         self.assertNotIn("token_hash", door)
 
+    def test_reissue_personal_rotates_hash_and_invalidates_old_token(self):
+        invite = self.keys.create_invite()
+        joined = self.keys.join(invite, "小明")
+        before = self.settings()["child_token_hash"]
+
+        reissued = self.keys.reissue_personal()
+
+        settings = self.settings()
+        self.assertEqual("小明", reissued["reader"]["display_name"])
+        self.assertEqual(
+            token_hash(reissued["token"]),
+            settings["child_token_hash"],
+        )
+        self.assertNotEqual(before, settings["child_token_hash"])
+        self.assertIsNone(self.keys.door_for(joined["token"]))
+        self.assertEqual(
+            {"kind": "personal", "reader": reissued["reader"]},
+            self.keys.door_for(reissued["token"]),
+        )
+
+    def test_reissue_personal_before_join_is_not_joined(self):
+        with self.assertRaises(DomainError) as raised:
+            self.keys.reissue_personal()
+        self.assertEqual("not_joined", raised.exception.code)
+
 
 if __name__ == "__main__":
     unittest.main()

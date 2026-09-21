@@ -12,9 +12,23 @@ from urllib.parse import quote
 from piggybank.keys import VaultKeys
 from piggybank.paths import DATA, DB_PATH, PAGES_BASE, PORT, ROOT, WEB
 from piggybank.schedule import TAIPEI
-from piggybank.service import PiggyService
+from piggybank.service import DomainError, PiggyService
 from piggybank.store import Store
 from piggybank.vault import make_server
+
+
+def personal_page_url(token: str) -> str:
+    encoded = quote(token, safe="")
+    return (
+        f"{PAGES_BASE.rstrip('/')}/index.html?k={encoded}#k={encoded}"
+    )
+
+
+def write_personal_url(token: str) -> str:
+    url = personal_page_url(token)
+    DATA.mkdir(parents=True, exist_ok=True)
+    (DATA / "personal-url.txt").write_text(f"{url}\n", encoding="utf-8")
+    return url
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,6 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
     setup = subparsers.add_parser("setup")
     setup.add_argument("--name", required=True)
     subparsers.add_parser("ensure-shortcut")
+    subparsers.add_parser(
+        "personal-url",
+        help="印出個人頁鑰匙網址；若遺失則補發新鑰匙",
+    )
     return parser
 
 
@@ -77,6 +95,31 @@ def main(argv: list[str] | None = None) -> int:
             f"{url}\n",
             encoding="utf-8",
         )
+        print(url)
+        return 0
+
+    if args.command == "personal-url":
+        DATA.mkdir(parents=True, exist_ok=True)
+        saved = DATA / "personal-url.txt"
+        if saved.is_file():
+            print(saved.read_text(encoding="utf-8").strip())
+            return 0
+        store = Store(DB_PATH)
+        try:
+            result = VaultKeys(store).reissue_personal()
+        except DomainError as error:
+            invite = DATA / "invite-url.txt"
+            if invite.is_file():
+                print(
+                    "還沒完成綁定。請用手機 Safari 開：",
+                    invite.read_text(encoding="utf-8").strip(),
+                    sep="\n",
+                    file=sys.stderr,
+                )
+            else:
+                print(str(error), file=sys.stderr)
+            return 2
+        url = write_personal_url(result["token"])
         print(url)
         return 0
 
