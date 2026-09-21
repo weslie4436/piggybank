@@ -368,13 +368,6 @@ def make_server(
                     self._string_field(payload, "pig_id"),
                     datetime.now(TAIPEI),
                 )
-            if path == "/api/harvest/page":
-                self._require_personal()
-                payload = self._read_json()
-                return service.harvest_page(
-                    self._integer_field(payload, "page_no"),
-                    datetime.now(TAIPEI),
-                )
             if path == "/api/exchange/preview":
                 self._require_personal()
                 payload = self._read_json()

@@ -7,8 +7,11 @@ from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
-from piggybank.schedule import TAIPEI, eligible_periods
+from piggybank.schedule import TAIPEI, eligible_periods, next_allowance_at
 from piggybank.store import Store
+
+DEFAULT_ALLOWANCE_AMOUNT = 30
+LIVE_PIG_STATUSES = ("growing", "reserved")
 
 
 class DomainError(Exception):
@@ -147,7 +150,7 @@ class PiggyService:
                     "pig_reserved",
                     "這隻撲滿正在兌換中",
                 )
-            if pig is None or pig["status"] != "full":
+            if pig is None or pig["status"] not in LIVE_PIG_STATUSES:
                 raise DomainError(
                     "pig_not_breakable",
                     "這隻撲滿目前不能敲",
@@ -163,39 +166,8 @@ class PiggyService:
         if total < amount:
             raise DomainError(
                 "insufficient_pigs",
-                "選取的撲滿金額不足",
+                "錢包金額不足",
             )
-
-        risk_pages = []
-        for page_no in sorted(
-            {
-                pig["page_no"]
-                for pig in selected
-                if pig["page_no"] is not None
-            }
-        ):
-            page = conn.execute(
-                """
-                SELECT complete_since
-                FROM warehouse_pages
-                WHERE page_no=?
-                """,
-                (page_no,),
-            ).fetchone()
-            full_count = conn.execute(
-                """
-                SELECT COUNT(*) AS count
-                FROM pigs
-                WHERE page_no=? AND status IN ('full','reserved')
-                """,
-                (page_no,),
-            ).fetchone()["count"]
-            if (
-                page is not None
-                and page["complete_since"] is not None
-                and full_count == 6
-            ):
-                risk_pages.append(page_no)
 
         return {
             "requested_amount": amount,
@@ -212,7 +184,7 @@ class PiggyService:
                 }
                 for pig in selected
             ],
-            "bonus_pages_at_risk": risk_pages,
+            "bonus_pages_at_risk": [],
         }
 
     @staticmethod
@@ -220,7 +192,7 @@ class PiggyService:
         conn.execute(
             """
             UPDATE pigs
-            SET status='full', reserved_exchange_id=NULL
+            SET status='growing', reserved_exchange_id=NULL
             WHERE status='reserved' AND reserved_exchange_id=?
             """,
             (exchange_id,),
@@ -282,10 +254,11 @@ class PiggyService:
         for pig in conn.execute(
             """
             SELECT id, pending_yield, daily_yield, yield_cap,
-                   last_yield_date
+                   last_yield_date, value
             FROM pigs
-            WHERE status IN ('full','reserved')
+            WHERE status IN ('growing','reserved')
               AND last_yield_date IS NOT NULL
+              AND value > 0
             """
         ):
             cursor = datetime.fromisoformat(pig["last_yield_date"])
@@ -308,157 +281,34 @@ class PiggyService:
                 (pending, cursor.isoformat(), pig["id"]),
             )
             changed = True
-        for page in conn.execute(
-            """
-            SELECT page_no, pending_bonus, last_bonus_date
-            FROM warehouse_pages
-            WHERE complete_since IS NOT NULL
-              AND last_bonus_date IS NOT NULL
-            """
-        ):
-            full_count = conn.execute(
-                """
-                SELECT COUNT(*) AS count
-                FROM pigs
-                WHERE page_no=? AND status IN ('full','reserved')
-                """,
-                (page["page_no"],),
-            ).fetchone()["count"]
-            if full_count != 6:
-                continue
-            cursor = datetime.fromisoformat(page["last_bonus_date"])
-            periods = int(
-                (current - cursor).total_seconds() // timedelta(days=1).total_seconds()
-            )
-            if periods <= 0:
-                continue
-            pending = min(6, page["pending_bonus"] + periods * 2)
-            cursor += timedelta(days=periods)
-            conn.execute(
-                """
-                UPDATE warehouse_pages
-                SET pending_bonus=?, last_bonus_date=?
-                WHERE page_no=?
-                """,
-                (pending, cursor.isoformat(), page["page_no"]),
-            )
-            changed = True
         return changed
 
     @staticmethod
     def _feed_in_transaction(conn, amount: int, timestamp: str) -> None:
-        remaining = amount
-        while remaining > 0:
-            active = conn.execute(
-                """
-                SELECT id, value, capacity
-                FROM pigs
-                WHERE status='growing'
-                """
-            ).fetchone()
-            if active is None:
-                raise RuntimeError("growing pig missing")
-            added = min(remaining, active["capacity"] - active["value"])
-            new_value = active["value"] + added
-            remaining -= added
-            if new_value < active["capacity"]:
-                conn.execute(
-                    "UPDATE pigs SET value=? WHERE id=?",
-                    (new_value, active["id"]),
-                )
-                break
-
-            pages = [
-                row["page_no"]
-                for row in conn.execute(
-                    "SELECT page_no FROM warehouse_pages ORDER BY page_no"
-                )
-            ]
-            occupied = {
-                (row["page_no"], row["slot_no"])
-                for row in conn.execute(
-                    """
-                    SELECT page_no, slot_no
-                    FROM pigs
-                    WHERE status IN ('full','reserved')
-                    """
-                )
-            }
-            destination = next(
-                (
-                    (page_no, slot_no)
-                    for page_no in pages
-                    for slot_no in range(1, 7)
-                    if (page_no, slot_no) not in occupied
-                ),
-                None,
+        active = conn.execute(
+            """
+            SELECT id, value, last_yield_date
+            FROM pigs
+            WHERE status='growing'
+            """
+        ).fetchone()
+        if active is None:
+            raise DomainError(
+                "pig_reserved",
+                "這隻撲滿正在兌換中",
             )
-            if destination is None:
-                next_page = max(pages, default=0) + 1
-                conn.execute(
-                    """
-                    INSERT INTO warehouse_pages (page_no, unlocked_at)
-                    VALUES (?, ?)
-                    """,
-                    (next_page, timestamp),
-                )
-                pages.append(next_page)
-                destination = (next_page, 1)
-
-            page_no, slot_no = destination
-            conn.execute(
-                """
-                UPDATE pigs
-                SET status='full', value=?, page_no=?, slot_no=?,
-                    filled_at=?, last_yield_date=?
-                WHERE id=?
-                """,
-                (
-                    new_value,
-                    page_no,
-                    slot_no,
-                    timestamp,
-                    timestamp,
-                    active["id"],
-                ),
-            )
-            full_count = conn.execute(
-                """
-                SELECT COUNT(*) AS count
-                FROM pigs
-                WHERE page_no=? AND status IN ('full','reserved')
-                """,
-                (page_no,),
-            ).fetchone()["count"]
-            if full_count == 6:
-                conn.execute(
-                    """
-                    UPDATE warehouse_pages
-                    SET complete_since=?, last_bonus_date=?
-                    WHERE page_no=?
-                    """,
-                    (timestamp, timestamp, page_no),
-                )
-                if page_no == max(pages):
-                    conn.execute(
-                        """
-                        INSERT OR IGNORE INTO warehouse_pages (
-                          page_no, unlocked_at
-                        )
-                        VALUES (?, ?)
-                        """,
-                        (page_no + 1, timestamp),
-                    )
-            conn.execute(
-                """
-                INSERT INTO pigs (
-                  id, tier_id, status, capacity, value, hit_count,
-                  daily_yield, yield_cap, created_at
-                )
-                VALUES (?, 'basic-150', 'growing', 150, 0, 5, 1, 3, ?)
-                """,
-                (uuid4().hex, timestamp),
-            )
+        new_value = active["value"] + amount
+        last_yield = active["last_yield_date"]
+        if last_yield is None and new_value > 0:
+            last_yield = timestamp
+        conn.execute(
+            """
+            UPDATE pigs
+            SET value=?, last_yield_date=?
+            WHERE id=?
+            """,
+            (new_value, last_yield, active["id"]),
+        )
 
     def set_parent_pin(self, pin: str, now: datetime) -> dict:
         self._require_aware(now)
@@ -702,7 +552,7 @@ class PiggyService:
                     """
                     UPDATE pigs
                     SET status='reserved', reserved_exchange_id=?
-                    WHERE id=? AND status='full'
+                    WHERE id=? AND status='growing'
                     """,
                     (exchange_id, pig_id),
                 )
@@ -798,64 +648,19 @@ class PiggyService:
                             )
                         selected.append(pig)
 
-                    risk_pages = []
-                    for page_no in sorted(
-                        {
-                            pig["page_no"]
-                            for pig in selected
-                            if pig["page_no"] is not None
-                        }
-                    ):
-                        page = conn.execute(
-                            """
-                            SELECT complete_since
-                            FROM warehouse_pages
-                            WHERE page_no=?
-                            """,
-                            (page_no,),
-                        ).fetchone()
-                        full_count = conn.execute(
-                            """
-                            SELECT COUNT(*) AS count
-                            FROM pigs
-                            WHERE page_no=?
-                              AND status IN ('full','reserved')
-                            """,
-                            (page_no,),
-                        ).fetchone()["count"]
-                        if (
-                            page is not None
-                            and page["complete_since"] is not None
-                            and full_count == 6
-                        ):
-                            risk_pages.append(page_no)
-                            conn.execute(
-                                """
-                                UPDATE warehouse_pages
-                                SET complete_since=NULL,
-                                    last_bonus_date=NULL
-                                WHERE page_no=?
-                                """,
-                                (page_no,),
-                            )
-
-                    for pig_id in pig_ids:
+                    remaining = exchange["change_amount"]
+                    for pig in selected:
                         conn.execute(
                             """
                             UPDATE pigs
-                            SET status='broken', reserved_exchange_id=NULL
+                            SET status='growing', value=?,
+                                reserved_exchange_id=NULL
                             WHERE id=?
                               AND status='reserved'
                               AND reserved_exchange_id=?
                             """,
-                            (pig_id, exchange["id"]),
+                            (remaining, pig["id"], exchange["id"]),
                         )
-
-                    self._feed_in_transaction(
-                        conn,
-                        exchange["change_amount"],
-                        timestamp,
-                    )
                     conn.execute(
                         """
                         UPDATE exchanges
@@ -885,7 +690,7 @@ class PiggyService:
                             uuid4().hex,
                             -exchange["requested_amount"],
                             balance,
-                            f"交換：{note}",
+                            f"消費：{note}",
                             json.dumps(
                                 {
                                     "exchange_id": exchange["id"],
@@ -898,7 +703,6 @@ class PiggyService:
                                     "change_amount": exchange[
                                         "change_amount"
                                     ],
-                                    "bonus_pages_at_risk": risk_pages,
                                 },
                                 ensure_ascii=False,
                                 separators=(",", ":"),
@@ -1039,7 +843,7 @@ class PiggyService:
                 )
             if (
                 pig is None
-                or pig["status"] != "full"
+                or pig["status"] != "growing"
                 or pig["pending_yield"] == 0
             ):
                 raise DomainError(
@@ -1094,110 +898,109 @@ class PiggyService:
                 "total": total,
             }
 
-    def harvest_page(self, page_no: int, now: datetime) -> dict:
-        self._require_aware(now)
-        timestamp = now.astimezone(TAIPEI).isoformat()
-        with self.store.transaction() as conn:
-            self._accrue_in_transaction(conn, now)
-            page = conn.execute(
-                """
-                SELECT page_no, pending_bonus
-                FROM warehouse_pages
-                WHERE page_no=?
-                """,
-                (page_no,),
-            ).fetchone()
-            if page is None:
-                raise DomainError(
-                    "page_not_found",
-                    "找不到這一頁倉庫",
-                )
-            if page["pending_bonus"] == 0:
-                raise DomainError(
-                    "nothing_to_harvest",
-                    "目前沒有可收的收益",
-                )
-
-            amount = page["pending_bonus"]
-            conn.execute(
-                """
-                UPDATE warehouse_pages
-                SET pending_bonus=0
-                WHERE page_no=?
-                """,
-                (page_no,),
-            )
-            self._feed_in_transaction(conn, amount, timestamp)
-            total = conn.execute(
-                """
-                SELECT COALESCE(SUM(value), 0) AS total
-                FROM pigs
-                WHERE status IN ('growing','full','reserved')
-                """
-            ).fetchone()["total"]
-            revision = Store.bump_revision(conn)
-            conn.execute(
-                """
-                INSERT INTO ledger (
-                  id, kind, amount, balance_after, note,
-                  metadata, created_at, revision
-                )
-                VALUES (?, 'page_bonus_harvest', ?, ?,
-                        '整頁儲蓄收益', ?, ?, ?)
-                """,
-                (
-                    uuid4().hex,
-                    amount,
-                    total,
-                    json.dumps(
-                        {"page_no": page_no},
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                    timestamp,
-                    revision,
-                ),
-            )
-            return {
-                "revision": revision,
-                "page_no": page_no,
-                "amount": amount,
-                "total": total,
-            }
-
     def initialize(self, now: datetime) -> None:
         self._require_aware(now)
         self.store.initialize()
-        timestamp = now.astimezone(TAIPEI).isoformat()
+        current = now.astimezone(TAIPEI)
+        timestamp = current.isoformat()
         changed = False
         with self.store.transaction() as conn:
-            if conn.execute(
-                "SELECT 1 FROM warehouse_pages LIMIT 1"
-            ).fetchone() is None:
-                conn.execute(
-                    """
-                    INSERT INTO warehouse_pages (page_no, unlocked_at)
-                    VALUES (1, ?)
-                    """,
-                    (timestamp,),
-                )
+            if self._collapse_to_one_pig(conn, timestamp):
                 changed = True
             if conn.execute(
-                "SELECT 1 FROM pigs WHERE status='growing' LIMIT 1"
+                "SELECT 1 FROM allowance_rules LIMIT 1"
             ).fetchone() is None:
                 conn.execute(
                     """
-                    INSERT INTO pigs (
-                      id, tier_id, status, capacity, value, hit_count,
-                      daily_yield, yield_cap, created_at
+                    INSERT INTO allowance_rules (
+                      amount, period, weekday, monthday,
+                      effective_date, created_at
                     )
-                    VALUES (?, 'basic-150', 'growing', 150, 0, 5, 1, 3, ?)
+                    VALUES (?, 'daily', NULL, NULL, ?, ?)
                     """,
-                    (uuid4().hex, timestamp),
+                    (
+                        DEFAULT_ALLOWANCE_AMOUNT,
+                        current.date().isoformat(),
+                        timestamp,
+                    ),
                 )
                 changed = True
             if changed:
                 Store.bump_revision(conn)
+
+    @staticmethod
+    def _collapse_to_one_pig(conn, timestamp: str) -> bool:
+        growing = conn.execute(
+            "SELECT * FROM pigs WHERE status='growing'"
+        ).fetchone()
+        others = conn.execute(
+            """
+            SELECT * FROM pigs
+            WHERE status IN ('full','reserved')
+            ORDER BY created_at, id
+            """
+        ).fetchall()
+        if growing is None and not others:
+            conn.execute(
+                """
+                INSERT INTO pigs (
+                  id, tier_id, status, capacity, value, hit_count,
+                  daily_yield, yield_cap, created_at
+                )
+                VALUES (?, 'basic-150', 'growing', 150, 0, 5, 1, 3, ?)
+                """,
+                (uuid4().hex, timestamp),
+            )
+            return True
+        keeper = growing if growing is not None else others[0]
+        extras = [
+            pig for pig in others if pig["id"] != keeper["id"]
+        ]
+        already_one = (
+            growing is not None
+            and not extras
+            and keeper["page_no"] is None
+            and keeper["slot_no"] is None
+            and keeper["reserved_exchange_id"] is None
+        )
+        if already_one:
+            return False
+        total = keeper["value"] + sum(pig["value"] for pig in extras)
+        pending = min(
+            keeper["yield_cap"],
+            keeper["pending_yield"] + sum(pig["pending_yield"] for pig in extras),
+        )
+        last_yield = keeper["last_yield_date"]
+        if last_yield is None:
+            last_yield = next(
+                (
+                    pig["last_yield_date"]
+                    for pig in extras
+                    if pig["last_yield_date"] is not None
+                ),
+                timestamp if total > 0 else None,
+            )
+        for pig in extras:
+            conn.execute(
+                """
+                UPDATE pigs
+                SET status='broken', page_no=NULL, slot_no=NULL,
+                    reserved_exchange_id=NULL
+                WHERE id=?
+                """,
+                (pig["id"],),
+            )
+        conn.execute(
+            """
+            UPDATE pigs
+            SET status='growing', value=?, pending_yield=?,
+                page_no=NULL, slot_no=NULL, reserved_exchange_id=NULL,
+                last_yield_date=?
+            WHERE id=?
+            """,
+            (total, pending, last_yield, keeper["id"]),
+        )
+        return True
 
     def set_allowance(
         self,
@@ -1277,35 +1080,17 @@ class PiggyService:
                 """
                 SELECT COALESCE(SUM(value), 0) AS total
                 FROM pigs
-                WHERE status IN ('growing','full','reserved')
+                WHERE status IN ('growing','reserved')
                 """
             ).fetchone()["total"]
             active = conn.execute(
-                "SELECT * FROM pigs WHERE status='growing'"
+                """
+                SELECT * FROM pigs
+                WHERE status IN ('growing','reserved')
+                ORDER BY created_at, id
+                LIMIT 1
+                """
             ).fetchone()
-            pages = []
-            for page in conn.execute(
-                "SELECT * FROM warehouse_pages ORDER BY page_no"
-            ):
-                pig_rows = conn.execute(
-                    """
-                    SELECT * FROM pigs
-                    WHERE page_no=? AND status IN ('full','reserved')
-                    ORDER BY slot_no
-                    """,
-                    (page["page_no"],),
-                ).fetchall()
-                pages.append(
-                    {
-                        "page_no": page["page_no"],
-                        "complete": len(pig_rows) == 6,
-                        "pending_bonus": page["pending_bonus"],
-                        "pigs": [
-                            {field: pig[field] for field in public_pig_fields}
-                            for pig in pig_rows
-                        ],
-                    }
-                )
             rules = [
                 dict(row)
                 for row in conn.execute(
@@ -1319,6 +1104,8 @@ class PiggyService:
             theme_row = conn.execute(
                 "SELECT value FROM settings WHERE key='theme'"
             ).fetchone()
+            nxt = next_allowance_at(rules, claimed_keys, now)
+            current = now.astimezone(TAIPEI)
             return {
                 "revision": revision,
                 "theme": (
@@ -1326,13 +1113,14 @@ class PiggyService:
                     if theme_row is not None
                     else "melody"
                 ),
+                "now": current.isoformat(),
                 "total": total,
                 "active_pig": (
                     {field: active[field] for field in public_pig_fields}
                     if active is not None
                     else None
                 ),
-                "warehouse_pages": pages,
+                "next_allowance_at": nxt.isoformat() if nxt is not None else None,
                 "claimable_periods": eligible_periods(
                     rules,
                     claimed_keys,

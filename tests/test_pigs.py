@@ -22,7 +22,7 @@ class PiggyServiceTestCase(unittest.TestCase):
         self.db_path = Path(self.tmp.name) / "test.sqlite3"
         self.store = Store(self.db_path)
         self.service = PiggyService(self.store)
-        self.now = datetime(2026, 9, 21, 8, 0, tzinfo=TAIPEI)
+        self.now = datetime(2026, 9, 21, 19, 0, tzinfo=TAIPEI)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -37,13 +37,12 @@ class PiggyServiceTestCase(unittest.TestCase):
 
 
 class TestInitializeAndAllowance(PiggyServiceTestCase):
-    def test_initialize_creates_one_active_pig_and_page_once(self):
+    def test_initialize_creates_one_pig_and_default_daily_allowance_once(self):
         self.service.initialize(self.now)
         self.service.initialize(self.now)
 
-        pages = self.rows("SELECT * FROM warehouse_pages ORDER BY page_no")
         pigs = self.rows("SELECT * FROM pigs ORDER BY created_at, id")
-        self.assertEqual([1], [row["page_no"] for row in pages])
+        rules = self.rows("SELECT * FROM allowance_rules")
         self.assertEqual(1, len(pigs))
         self.assertEqual(
             {
@@ -80,6 +79,17 @@ class TestInitializeAndAllowance(PiggyServiceTestCase):
                 )
             },
         )
+        self.assertEqual(1, len(rules))
+        self.assertEqual(
+            (30, "daily", None, None, "2026-09-21"),
+            (
+                rules[0]["amount"],
+                rules[0]["period"],
+                rules[0]["weekday"],
+                rules[0]["monthday"],
+                rules[0]["effective_date"],
+            ),
+        )
         self.assertEqual(1, self.store.snapshot()["revision"])
 
     def test_set_allowance_accepts_period_specific_fields_and_bumps_once(self):
@@ -107,9 +117,13 @@ class TestInitializeAndAllowance(PiggyServiceTestCase):
         )
 
         rules = self.rows("SELECT * FROM allowance_rules ORDER BY id")
-        self.assertEqual([daily_id, weekly_id, monthly_id], [row["id"] for row in rules])
+        self.assertEqual(
+            [daily_id, weekly_id, monthly_id],
+            [row["id"] for row in rules][-3:],
+        )
         self.assertEqual(
             [
+                ("daily", None, None),
                 ("daily", None, None),
                 ("weekly", 1, None),
                 ("monthly", None, 15),
@@ -153,7 +167,7 @@ class TestInitializeAndAllowance(PiggyServiceTestCase):
                         monthday=monthday,
                     )
 
-        self.assertEqual([], self.rows("SELECT * FROM allowance_rules"))
+        self.assertEqual(1, len(self.rows("SELECT * FROM allowance_rules")))
         self.assertEqual(1, self.store.snapshot()["revision"])
 
 
@@ -248,8 +262,8 @@ class TestClaim(PiggyServiceTestCase):
 
 
 class TestPigFilling(PiggyServiceTestCase):
-    def test_one_hundred_forty_then_thirty_stores_full_pig_and_carries_twenty(self):
-        first_day = datetime(2026, 9, 20, 8, 0, tzinfo=TAIPEI)
+    def test_claims_stack_into_the_same_pig(self):
+        first_day = datetime(2026, 9, 20, 19, 0, tzinfo=TAIPEI)
         self.service.initialize(first_day)
         self.service.set_allowance(
             140,
@@ -267,15 +281,14 @@ class TestPigFilling(PiggyServiceTestCase):
 
         self.service.claim("2026-09-21", self.now)
 
-        full = self.rows("SELECT * FROM pigs WHERE status='full'")[0]
-        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertEqual((150, 1, 1), (full["value"], full["page_no"], full["slot_no"]))
-        self.assertEqual(self.now.isoformat(), full["filled_at"])
-        self.assertEqual(self.now.isoformat(), full["last_yield_date"])
-        self.assertEqual(20, active["value"])
-        self.assertEqual(170, sum(row["value"] for row in (full, active)))
+        pigs = self.rows("SELECT * FROM pigs WHERE status='growing'")
+        self.assertEqual(1, len(pigs))
+        self.assertEqual(170, pigs[0]["value"])
+        self.assertEqual(first_day.isoformat(), pigs[0]["last_yield_date"])
+        self.assertIsNone(pigs[0]["page_no"])
+        self.assertEqual([], self.rows("SELECT * FROM pigs WHERE status='full'"))
 
-    def test_large_claim_can_fill_multiple_pigs(self):
+    def test_large_claim_stays_on_the_same_pig(self):
         self.service.initialize(self.now)
         self.service.set_allowance(
             470,
@@ -286,122 +299,51 @@ class TestPigFilling(PiggyServiceTestCase):
 
         self.service.claim("2026-09-21", self.now)
 
-        full = self.rows(
-            """
-            SELECT * FROM pigs
-            WHERE status='full'
-            ORDER BY page_no, slot_no
-            """
-        )
-        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertEqual([150, 150, 150], [row["value"] for row in full])
-        self.assertEqual([1, 2, 3], [row["slot_no"] for row in full])
-        self.assertEqual(20, active["value"])
-
-    def test_sixth_full_pig_completes_page_and_unlocks_next_page(self):
-        self.service.initialize(self.now)
-        self.service.set_allowance(
-            900,
-            "daily",
-            date(2026, 9, 21),
-            self.now,
-        )
-
-        self.service.claim("2026-09-21", self.now)
-
-        full = self.rows(
-            """
-            SELECT * FROM pigs
-            WHERE status='full'
-            ORDER BY page_no, slot_no
-            """
-        )
-        pages = self.rows("SELECT * FROM warehouse_pages ORDER BY page_no")
-        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertEqual([1, 2, 3, 4, 5, 6], [row["slot_no"] for row in full])
-        self.assertTrue(all(row["page_no"] == 1 for row in full))
-        self.assertEqual([1, 2], [row["page_no"] for row in pages])
-        self.assertEqual(self.now.isoformat(), pages[0]["complete_since"])
-        self.assertEqual(self.now.isoformat(), pages[0]["last_bonus_date"])
-        self.assertIsNone(pages[1]["complete_since"])
-        self.assertEqual(0, active["value"])
+        pigs = self.rows("SELECT * FROM pigs WHERE status='growing'")
+        self.assertEqual(1, len(pigs))
+        self.assertEqual(470, pigs[0]["value"])
+        self.assertEqual(self.now.isoformat(), pigs[0]["last_yield_date"])
 
 
 class TestWarehouseAndState(PiggyServiceTestCase):
-    def test_new_full_pig_fills_earliest_hole_without_moving_later_page_pig(self):
-        first_day = datetime(2026, 9, 20, 8, 0, tzinfo=TAIPEI)
+    def test_initialize_collapses_old_warehouse_pigs_into_one(self):
+        first_day = datetime(2026, 9, 20, 19, 0, tzinfo=TAIPEI)
         self.service.initialize(first_day)
-        self.service.set_allowance(
-            1050,
-            "daily",
-            date(2026, 9, 20),
-            first_day,
-        )
-        self.service.claim("2026-09-20", first_day)
-        removed = self.rows(
-            """
-            SELECT id FROM pigs
-            WHERE page_no=1 AND slot_no=2 AND status='full'
-            """
-        )[0]["id"]
-        later = self.rows(
-            """
-            SELECT id FROM pigs
-            WHERE page_no=2 AND slot_no=1 AND status='full'
-            """
-        )[0]["id"]
+        pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
+        extra = "full-pig-1"
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute(
                 """
-                UPDATE pigs
-                SET status='broken', page_no=NULL, slot_no=NULL
-                WHERE id=?
+                INSERT INTO pigs (
+                  id, tier_id, status, capacity, value, hit_count,
+                  daily_yield, yield_cap, pending_yield, page_no, slot_no,
+                  created_at
+                )
+                VALUES (?, 'basic-150', 'full', 150, 150, 5, 1, 3, 1, 1, 1, ?)
                 """,
-                (removed,),
-            )
-            conn.execute(
-                """
-                UPDATE warehouse_pages
-                SET complete_since=NULL, last_bonus_date=NULL
-                WHERE page_no=1
-                """
+                (extra, first_day.isoformat()),
             )
             conn.commit()
         finally:
             conn.close()
-        self.service.set_allowance(
-            150,
-            "daily",
-            date(2026, 9, 21),
-            self.now,
-        )
 
-        self.service.claim("2026-09-21", self.now)
+        self.service.initialize(self.now)
 
-        replacement = self.rows(
-            """
-            SELECT id FROM pigs
-            WHERE page_no=1 AND slot_no=2 AND status='full'
-            """
-        )[0]["id"]
-        later_after = self.rows(
-            "SELECT page_no, slot_no FROM pigs WHERE id=?",
-            (later,),
-        )[0]
-        page1 = self.rows(
-            "SELECT complete_since, last_bonus_date FROM warehouse_pages WHERE page_no=1"
-        )[0]
-        self.assertNotEqual(removed, replacement)
-        self.assertEqual((2, 1), (later_after["page_no"], later_after["slot_no"]))
-        self.assertEqual(self.now.isoformat(), page1["complete_since"])
-        self.assertEqual(self.now.isoformat(), page1["last_bonus_date"])
+        pigs = self.rows("SELECT * FROM pigs WHERE status='growing'")
+        broken = self.rows("SELECT * FROM pigs WHERE status='broken'")
+        self.assertEqual(1, len(pigs))
+        self.assertEqual(pig_id, pigs[0]["id"])
+        self.assertEqual(150, pigs[0]["value"])
+        self.assertEqual(1, pigs[0]["pending_yield"])
+        self.assertIsNone(pigs[0]["page_no"])
+        self.assertEqual([extra], [row["id"] for row in broken])
 
-    def test_state_reports_total_sorted_pages_pigs_and_claimable_periods(self):
-        first_day = datetime(2026, 9, 20, 8, 0, tzinfo=TAIPEI)
+    def test_state_reports_total_one_pig_and_claimable_periods(self):
+        first_day = datetime(2026, 9, 20, 19, 0, tzinfo=TAIPEI)
         self.service.initialize(first_day)
         self.service.set_allowance(
-            1050,
+            80,
             "daily",
             date(2026, 9, 20),
             first_day,
@@ -416,24 +358,11 @@ class TestWarehouseAndState(PiggyServiceTestCase):
 
         state = self.service.state(self.now)
 
-        self.assertEqual(5, state["revision"])
         self.assertEqual("melody", state["theme"])
-        self.assertEqual(1050, state["total"])
+        self.assertEqual(80, state["total"])
         self.assertEqual("growing", state["active_pig"]["status"])
-        self.assertEqual(0, state["active_pig"]["value"])
-        self.assertEqual([1, 2], [page["page_no"] for page in state["warehouse_pages"]])
-        self.assertEqual(
-            [True, False],
-            [page["complete"] for page in state["warehouse_pages"]],
-        )
-        self.assertEqual(
-            [1, 2, 3, 4, 5, 6],
-            [pig["slot_no"] for pig in state["warehouse_pages"][0]["pigs"]],
-        )
-        self.assertEqual(
-            [1],
-            [pig["slot_no"] for pig in state["warehouse_pages"][1]["pigs"]],
-        )
+        self.assertEqual(80, state["active_pig"]["value"])
+        self.assertNotIn("warehouse_pages", state)
         self.assertEqual(
             [
                 {
@@ -446,20 +375,22 @@ class TestWarehouseAndState(PiggyServiceTestCase):
             ],
             state["claimable_periods"],
         )
+        self.assertEqual(
+            datetime(2026, 9, 22, 19, 0, tzinfo=TAIPEI).isoformat(),
+            state["next_allowance_at"],
+        )
 
 
 class TestDebugFeed(PiggyServiceTestCase):
-    def test_debug_feed_fills_one_pig_and_records_ledger(self):
+    def test_debug_feed_adds_to_the_same_pig_and_records_ledger(self):
         self.service.initialize(self.now)
 
         result = self.service.debug_feed(self.now)
 
-        full = self.rows("SELECT * FROM pigs WHERE status='full'")[0]
-        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
+        pig = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
         ledger = self.rows("SELECT * FROM ledger")[0]
-        self.assertEqual(150, full["value"])
-        self.assertEqual((1, 1), (full["page_no"], full["slot_no"]))
-        self.assertEqual(0, active["value"])
+        self.assertEqual(150, pig["value"])
+        self.assertIsNone(pig["page_no"])
         self.assertEqual(
             ("debug_feed", 150, 150, "測試加錢", 2),
             (
@@ -480,21 +411,15 @@ class TestDebugFeed(PiggyServiceTestCase):
         )
         self.assertEqual(2, self.store.snapshot()["revision"])
 
-    def test_debug_feed_can_fill_a_second_pig(self):
+    def test_debug_feed_can_stack_on_the_same_pig(self):
         self.service.initialize(self.now)
         self.service.debug_feed(self.now)
 
         result = self.service.debug_feed(self.now)
 
-        full = self.rows(
-            """
-            SELECT * FROM pigs
-            WHERE status='full'
-            ORDER BY page_no, slot_no
-            """
-        )
-        self.assertEqual([150, 150], [row["value"] for row in full])
-        self.assertEqual([1, 2], [row["slot_no"] for row in full])
+        pigs = self.rows("SELECT * FROM pigs WHERE status='growing'")
+        self.assertEqual(1, len(pigs))
+        self.assertEqual(300, pigs[0]["value"])
         self.assertEqual(300, result["total"])
 
 

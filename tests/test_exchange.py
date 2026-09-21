@@ -16,7 +16,7 @@ from piggybank.service import DomainError, PiggyService
 from piggybank.store import Store
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-START = datetime(2026, 9, 21, 8, 0, tzinfo=TAIPEI)
+START = datetime(2026, 9, 21, 19, 0, tzinfo=TAIPEI)
 
 
 class ExchangeTestCase(unittest.TestCase):
@@ -54,8 +54,8 @@ class ExchangeTestCase(unittest.TestCase):
         return self.rows(
             """
             SELECT * FROM pigs
-            WHERE status='full'
-            ORDER BY page_no, slot_no
+            WHERE status IN ('growing','reserved')
+            ORDER BY created_at, id
             """
         )
 
@@ -82,10 +82,10 @@ class TestParentPin(ExchangeTestCase):
 
 
 class TestPreviewExchange(ExchangeTestCase):
-    def test_preview_reports_exact_values_hits_and_complete_page_risk(self):
+    def test_preview_reports_remaining_wallet_value(self):
         self.claim(900)
-        pigs = self.full_pigs()
-        selected = [pigs[1]["id"], pigs[0]["id"]]
+        pig = self.full_pigs()[0]
+        selected = [pig["id"]]
         before_revision = self.store.snapshot()["revision"]
         before_rows = [tuple(row) for row in self.rows("SELECT * FROM pigs")]
 
@@ -94,26 +94,19 @@ class TestPreviewExchange(ExchangeTestCase):
         self.assertEqual(
             {
                 "requested_amount": 250,
-                "total_pig_value": 300,
-                "change_amount": 50,
+                "total_pig_value": 900,
+                "change_amount": 650,
                 "pig_ids": selected,
                 "pigs": [
                     {
-                        "id": pigs[1]["id"],
-                        "value": 150,
+                        "id": pig["id"],
+                        "value": 900,
                         "hit_count": 5,
-                        "page_no": 1,
-                        "slot_no": 2,
-                    },
-                    {
-                        "id": pigs[0]["id"],
-                        "value": 150,
-                        "hit_count": 5,
-                        "page_no": 1,
-                        "slot_no": 1,
-                    },
+                        "page_no": None,
+                        "slot_no": None,
+                    }
                 ],
-                "bonus_pages_at_risk": [1],
+                "bonus_pages_at_risk": [],
             },
             result,
         )
@@ -140,7 +133,7 @@ class TestPreviewExchange(ExchangeTestCase):
                 with self.assertRaises(ValueError):
                     call()
 
-    def test_preview_rejects_missing_and_growing_pigs(self):
+    def test_preview_rejects_missing_and_broken_pigs(self):
         self.claim(150)
         growing_id = self.rows(
             "SELECT id FROM pigs WHERE status='growing'"
@@ -149,6 +142,10 @@ class TestPreviewExchange(ExchangeTestCase):
         self.assert_domain_error(
             "pig_not_breakable",
             lambda: self.service.preview_exchange(1, ["missing"], START),
+        )
+        self.execute(
+            "UPDATE pigs SET status='broken' WHERE id=?",
+            (growing_id,),
         )
         self.assert_domain_error(
             "pig_not_breakable",
@@ -277,13 +274,10 @@ class TestReserveExchange(ExchangeTestCase):
         )
         self.assertEqual(before, self.store.snapshot()["revision"])
 
-    def test_reserve_stores_only_token_hash_and_preserves_complete_page(self):
+    def test_reserve_stores_only_token_hash(self):
         self.claim(900)
-        pigs = self.full_pigs()
-        selected = [pigs[2]["id"], pigs[0]["id"]]
-        page_before = self.rows(
-            "SELECT * FROM warehouse_pages WHERE page_no=1"
-        )[0]
+        pig = self.full_pigs()[0]
+        selected = [pig["id"]]
         ledger_before = len(self.rows("SELECT * FROM ledger"))
         revision_before = self.store.snapshot()["revision"]
 
@@ -296,16 +290,9 @@ class TestReserveExchange(ExchangeTestCase):
 
         exchange = self.rows("SELECT * FROM exchanges")[0]
         reserved = self.rows(
-            """
-            SELECT * FROM pigs
-            WHERE reserved_exchange_id=?
-            ORDER BY slot_no
-            """,
+            "SELECT * FROM pigs WHERE reserved_exchange_id=?",
             (exchange["id"],),
         )
-        page_after = self.rows(
-            "SELECT * FROM warehouse_pages WHERE page_no=1"
-        )[0]
         self.assertEqual(token_hash(result["token"]), exchange["token_hash"])
         self.assertNotIn(
             result["token"].encode("utf-8"),
@@ -317,7 +304,7 @@ class TestReserveExchange(ExchangeTestCase):
             exchange["pig_ids"],
         )
         self.assertEqual(
-            (300, 100, (START + timedelta(minutes=15)).isoformat()),
+            (900, 700, (START + timedelta(minutes=15)).isoformat()),
             (
                 exchange["total_pig_value"],
                 exchange["change_amount"],
@@ -325,23 +312,11 @@ class TestReserveExchange(ExchangeTestCase):
             ),
         )
         self.assertEqual(
-            [("reserved", 150, 1, 1), ("reserved", 150, 1, 3)],
+            [("reserved", 900, None, None)],
             [
                 (row["status"], row["value"], row["page_no"], row["slot_no"])
                 for row in reserved
             ],
-        )
-        self.assertEqual(
-            (
-                page_before["complete_since"],
-                page_before["last_bonus_date"],
-                page_before["pending_bonus"],
-            ),
-            (
-                page_after["complete_since"],
-                page_after["last_bonus_date"],
-                page_after["pending_bonus"],
-            ),
         )
         self.assertEqual(ledger_before, len(self.rows("SELECT * FROM ledger")))
         self.assertEqual(revision_before + 1, result["revision"])
@@ -350,10 +325,10 @@ class TestReserveExchange(ExchangeTestCase):
                 "id": exchange["id"],
                 "expires_at": (START + timedelta(minutes=15)).isoformat(),
                 "requested_amount": 200,
-                "total_pig_value": 300,
-                "change_amount": 100,
+                "total_pig_value": 900,
+                "change_amount": 700,
                 "pig_ids": selected,
-                "bonus_pages_at_risk": [1],
+                "bonus_pages_at_risk": [],
             },
             {
                 key: result[key]
@@ -388,15 +363,10 @@ class TestApproveExchange(ExchangeTestCase):
         self.claim(amount)
         self.service.set_parent_pin("123456", START)
         pigs = self.full_pigs()
-        selected = (
-            [pigs[1]["id"], pigs[3]["id"]]
-            if len(pigs) >= 4
-            else [pigs[0]["id"], pigs[1]["id"]]
-        )
         reservation = self.service.reserve_exchange(
             200,
             "買文具",
-            selected,
+            [pigs[0]["id"]],
             START,
         )
         return reservation, pigs
@@ -425,18 +395,9 @@ class TestApproveExchange(ExchangeTestCase):
         self.assertEqual("家長密碼尚未設定", str(error))
         self.assertEqual(before, self.store.snapshot()["revision"])
 
-    def test_correct_pin_completes_once_and_feeds_change_to_earliest_hole(self):
+    def test_correct_pin_completes_once_and_keeps_remaining_in_the_pig(self):
         reservation, original_pigs = self.prepare()
-        original_active = self.rows(
-            "SELECT id FROM pigs WHERE status='growing'"
-        )[0]["id"]
-        self.execute(
-            """
-            UPDATE warehouse_pages
-            SET pending_bonus=4
-            WHERE page_no=1
-            """
-        )
+        pig_id = original_pigs[0]["id"]
         before = self.store.snapshot()["revision"]
 
         result = self.service.approve_exchange(
@@ -450,47 +411,14 @@ class TestApproveExchange(ExchangeTestCase):
             "SELECT * FROM exchanges WHERE id=?",
             (reservation["id"],),
         )[0]
-        broken = self.rows(
-            "SELECT * FROM pigs WHERE reserved_exchange_id IS NULL AND status='broken'"
-        )
-        refilled = self.rows(
-            "SELECT * FROM pigs WHERE id=?",
-            (original_active,),
-        )[0]
-        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        page = self.rows(
-            "SELECT * FROM warehouse_pages WHERE page_no=1"
-        )[0]
+        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
         ledger = self.rows(
             "SELECT * FROM ledger WHERE kind='exchange_spend'"
         )[0]
         metadata = json.loads(ledger["metadata"])
-        self.assertEqual(
-            {
-                original_pigs[1]["id"],
-                original_pigs[3]["id"],
-            },
-            {row["id"] for row in broken},
-        )
-        self.assertEqual(
-            {(1, 2, 150), (1, 4, 150)},
-            {(row["page_no"], row["slot_no"], row["value"]) for row in broken},
-        )
-        self.assertEqual(
-            ("full", 150, 1, 2),
-            (
-                refilled["status"],
-                refilled["value"],
-                refilled["page_no"],
-                refilled["slot_no"],
-            ),
-        )
-        self.assertEqual(50, active["value"])
-        self.assertEqual((None, None, 4), (
-            page["complete_since"],
-            page["last_bonus_date"],
-            page["pending_bonus"],
-        ))
+        self.assertEqual("growing", pig["status"])
+        self.assertEqual(800, pig["value"])
+        self.assertIsNone(pig["reserved_exchange_id"])
         self.assertEqual(
             ("completed", "同意購買", (START + timedelta(minutes=1)).isoformat()),
             (
@@ -500,7 +428,7 @@ class TestApproveExchange(ExchangeTestCase):
             ),
         )
         self.assertEqual(
-            ("exchange_spend", -200, 800, "交換：同意購買", before + 1),
+            ("exchange_spend", -200, 800, "消費：同意購買", before + 1),
             (
                 ledger["kind"],
                 ledger["amount"],
@@ -515,9 +443,8 @@ class TestApproveExchange(ExchangeTestCase):
                 "child_note": "買文具",
                 "parent_note": "同意購買",
                 "pig_ids": reservation["pig_ids"],
-                "total_pig_value": 300,
-                "change_amount": 100,
-                "bonus_pages_at_risk": [1],
+                "total_pig_value": 1000,
+                "change_amount": 800,
             },
             metadata,
         )
@@ -527,8 +454,8 @@ class TestApproveExchange(ExchangeTestCase):
                 "id": reservation["id"],
                 "status": "completed",
                 "spent": 200,
-                "change": 100,
-                "total": 300,
+                "change": 800,
+                "total": 1000,
                 "parent_note": "同意購買",
             },
             result,
@@ -653,7 +580,7 @@ class TestApproveExchange(ExchangeTestCase):
         )
 
         expired = self.service.reserve_exchange(
-            1, "過期", [pigs[1]["id"]], START
+            1, "過期", [pigs[0]["id"]], START
         )
         self.service.expire_exchanges(START + timedelta(minutes=15))
         self.assert_domain_error(
@@ -668,19 +595,19 @@ class TestApproveExchange(ExchangeTestCase):
 
 
 class TestCancelExpireAndStatus(ExchangeTestCase):
-    def reserve_two(self) -> tuple[dict, list[sqlite3.Row]]:
+    def reserve_one(self) -> tuple[dict, list[sqlite3.Row]]:
         self.claim(300)
         pigs = self.full_pigs()
         reservation = self.service.reserve_exchange(
             100,
             "預約",
-            [pigs[1]["id"], pigs[0]["id"]],
+            [pigs[0]["id"]],
             START,
         )
         return reservation, pigs
 
     def test_cancel_restores_exact_pigs_and_is_idempotent_without_ledger(self):
-        reservation, pigs = self.reserve_two()
+        reservation, pigs = self.reserve_one()
         before = self.store.snapshot()["revision"]
         ledger_before = len(self.rows("SELECT * FROM ledger"))
 
@@ -688,31 +615,22 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
         after_first = self.store.snapshot()["revision"]
         second = self.service.cancel_exchange(reservation["token"], START)
 
-        restored = {
-            row["id"]: row
-            for row in self.rows(
-                "SELECT * FROM pigs WHERE id IN (?, ?)",
-                (pigs[0]["id"], pigs[1]["id"]),
-            )
-        }
-        for original in pigs[:2]:
-            current = restored[original["id"]]
-            self.assertEqual(
-                (
-                    "full",
-                    original["value"],
-                    original["page_no"],
-                    original["slot_no"],
-                    None,
-                ),
-                (
-                    current["status"],
-                    current["value"],
-                    current["page_no"],
-                    current["slot_no"],
-                    current["reserved_exchange_id"],
-                ),
-            )
+        current = self.rows(
+            "SELECT * FROM pigs WHERE id=?",
+            (pigs[0]["id"],),
+        )[0]
+        self.assertEqual(
+            (
+                "growing",
+                pigs[0]["value"],
+                None,
+            ),
+            (
+                current["status"],
+                current["value"],
+                current["reserved_exchange_id"],
+            ),
+        )
         self.assertEqual("cancelled", first["status"])
         self.assertEqual(first, second)
         self.assertEqual(before + 1, after_first)
@@ -737,14 +655,11 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
             ),
         )
 
-    def test_expire_multiple_pending_restores_all_and_bumps_once(self):
+    def test_expire_pending_restores_the_pig_and_bumps_once(self):
         self.claim(600)
-        pigs = self.full_pigs()
+        pig = self.full_pigs()[0]
         first = self.service.reserve_exchange(
-            1, "第一筆", [pigs[0]["id"], pigs[1]["id"]], START
-        )
-        second = self.service.reserve_exchange(
-            1, "第二筆", [pigs[2]["id"], pigs[3]["id"]], START
+            1, "第一筆", [pig["id"]], START
         )
         before = self.store.snapshot()["revision"]
         ledger_before = len(self.rows("SELECT * FROM ledger"))
@@ -753,25 +668,18 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
             START + timedelta(minutes=15)
         )
 
-        self.assertEqual({"revision": before + 1, "expired": 2}, result)
+        self.assertEqual({"revision": before + 1, "expired": 1}, result)
         self.assertEqual(
-            ["expired", "expired"],
+            ["expired"],
             [
                 row["status"]
                 for row in self.rows("SELECT * FROM exchanges ORDER BY id")
             ],
         )
-        self.assertTrue(
-            all(
-                row["status"] == "full"
-                and row["reserved_exchange_id"] is None
-                and row["value"] == 150
-                for row in self.rows(
-                    "SELECT * FROM pigs WHERE id IN (?, ?, ?, ?)",
-                    tuple(first["pig_ids"] + second["pig_ids"]),
-                )
-            )
-        )
+        restored = self.rows("SELECT * FROM pigs WHERE id=?", (pig["id"],))[0]
+        self.assertEqual("growing", restored["status"])
+        self.assertIsNone(restored["reserved_exchange_id"])
+        self.assertEqual(600, restored["value"])
         self.assertEqual(ledger_before, len(self.rows("SELECT * FROM ledger")))
 
         repeated = self.service.expire_exchanges(
@@ -783,7 +691,7 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
         )
 
     def test_approve_at_expiry_commits_expiration_before_error(self):
-        reservation, pigs = self.reserve_two()
+        reservation, pigs = self.reserve_one()
         before = self.store.snapshot()["revision"]
 
         self.assert_domain_error(
@@ -801,15 +709,15 @@ class TestCancelExpireAndStatus(ExchangeTestCase):
             (reservation["id"],),
         )[0]
         restored = self.rows(
-            "SELECT * FROM pigs WHERE id IN (?, ?)",
-            (pigs[0]["id"], pigs[1]["id"]),
+            "SELECT * FROM pigs WHERE id=?",
+            (pigs[0]["id"],),
         )
         self.assertEqual("expired", exchange["status"])
-        self.assertTrue(all(row["status"] == "full" for row in restored))
+        self.assertEqual("growing", restored[0]["status"])
         self.assertEqual(before + 1, self.store.snapshot()["revision"])
 
     def test_exchange_status_expires_first_and_never_leaks_token_hash(self):
-        reservation, _ = self.reserve_two()
+        reservation, _ = self.reserve_one()
 
         result = self.service.exchange_status(
             reservation["id"],

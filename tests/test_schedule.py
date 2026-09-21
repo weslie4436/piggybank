@@ -5,7 +5,7 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime, timezone
 
-from piggybank.schedule import eligible_periods, period_key
+from piggybank.schedule import due_at, eligible_periods, next_allowance_at, period_key
 
 
 def rule(
@@ -46,10 +46,30 @@ class TestSchedule(unittest.TestCase):
             [
                 ("2026-09-19", "makeup"),
                 ("2026-09-20", "makeup"),
+            ],
+            [(item["period_key"], item["claim_kind"]) for item in periods],
+        )
+
+    def test_daily_becomes_claimable_at_seven_pm_taipei(self):
+        periods = eligible_periods(
+            [rule(1, 30, "daily", date(2026, 9, 19))],
+            [],
+            datetime(2026, 9, 21, 11, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            [
+                ("2026-09-19", "makeup"),
+                ("2026-09-20", "makeup"),
                 ("2026-09-21", "on_time"),
             ],
             [(item["period_key"], item["claim_kind"]) for item in periods],
         )
+        nxt = next_allowance_at(
+            [rule(1, 30, "daily", date(2026, 9, 19))],
+            {"2026-09-19", "2026-09-20", "2026-09-21"},
+            datetime(2026, 9, 21, 11, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(due_at(date(2026, 9, 22)), nxt)
 
     def test_weekly_only_produces_selected_weekday(self):
         periods = eligible_periods(
@@ -67,7 +87,7 @@ class TestSchedule(unittest.TestCase):
         )
 
         self.assertEqual(
-            [date(2026, 9, 14), date(2026, 9, 21)],
+            [date(2026, 9, 14)],
             [item["due_date"] for item in periods],
         )
 
@@ -106,7 +126,6 @@ class TestSchedule(unittest.TestCase):
                 ("2026-09-18", 1, 10),
                 ("2026-09-19", 1, 10),
                 ("2026-09-20", 2, 25),
-                ("2026-09-21", 2, 25),
             ],
             [
                 (item["period_key"], item["rule_id"], item["amount"])
@@ -125,7 +144,7 @@ class TestSchedule(unittest.TestCase):
         )
 
         self.assertEqual(
-            ["2026-09-18", "2026-09-19", "2026-09-21"],
+            ["2026-09-18", "2026-09-19"],
             [item["period_key"] for item in periods],
         )
 

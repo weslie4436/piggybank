@@ -8,7 +8,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from http.client import HTTPConnection
 from pathlib import Path
 from unittest.mock import patch
@@ -117,11 +117,11 @@ class VaultHttpTestCase(unittest.TestCase):
             conn.close()
 
     def prepare_full_pigs(self, amount: int = 600) -> list[sqlite3.Row]:
-        today = self.now.date()
-        self.service.set_allowance(amount, "daily", today, self.now)
-        self.service.claim(today.isoformat(), self.now)
+        yesterday = (self.now - timedelta(days=1)).date()
+        self.service.set_allowance(amount, "daily", yesterday, self.now)
+        self.service.claim(yesterday.isoformat(), self.now)
         return self.rows(
-            "SELECT * FROM pigs WHERE status='full' ORDER BY page_no, slot_no"
+            "SELECT * FROM pigs WHERE status='growing' ORDER BY created_at, id"
         )
 
 
@@ -245,14 +245,14 @@ class TestDoorJoinAndPersonalAuth(VaultHttpTestCase):
 
 class TestChildMoneyEndpoints(VaultHttpTestCase):
     def test_claim_harvest_preview_reserve_status_and_cancel_succeed(self):
-        today = self.now.date()
-        self.service.set_allowance(600, "daily", today, self.now)
+        yesterday = (self.now - timedelta(days=1)).date()
+        self.service.set_allowance(600, "daily", yesterday, self.now)
         key = quote(self.personal)
 
         status, _, claimed = self.json_request(
             "POST",
             f"/api/claim?k={key}",
-            {"period_key": today.isoformat()},
+            {"period_key": yesterday.isoformat()},
         )
         self.assertEqual(200, status)
         self.assertEqual(600, claimed["amount"])
@@ -267,7 +267,7 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         self.assertGreaterEqual(debug_fed["total"], 750)
 
         pigs = self.rows(
-            "SELECT * FROM pigs WHERE status='full' ORDER BY page_no, slot_no"
+            "SELECT * FROM pigs WHERE status='growing' ORDER BY created_at, id"
         )
 
         self.execute(
@@ -282,25 +282,14 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         self.assertEqual(200, status)
         self.assertEqual(1, harvested["amount"])
 
-        self.execute(
-            "UPDATE warehouse_pages SET pending_bonus=2 WHERE page_no=1"
-        )
-        status, _, page = self.json_request(
-            "POST",
-            f"/api/harvest/page?k={key}",
-            {"page_no": 1},
-        )
-        self.assertEqual(200, status)
-        self.assertEqual(2, page["amount"])
-
-        selected = [pigs[1]["id"]]
+        selected = [pigs[0]["id"]]
         status, _, preview = self.json_request(
             "POST",
             f"/api/exchange/preview?k={key}",
             {"amount": 100, "child_note": "ignored", "pig_ids": selected},
         )
         self.assertEqual(200, status)
-        self.assertEqual(50, preview["change_amount"])
+        self.assertEqual(pigs[0]["value"] + 1 - 100, preview["change_amount"])
 
         status, _, reservation = self.json_request(
             "POST",
@@ -335,7 +324,6 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             ("POST", "/api/claim", {"period_key": "2026-01-01"}),
             ("POST", "/api/debug/feed", {}),
             ("POST", "/api/harvest/pig", {"pig_id": "pig"}),
-            ("POST", "/api/harvest/page", {"page_no": 1}),
             (
                 "POST",
                 "/api/exchange/preview",
@@ -417,8 +405,8 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
 
         status, _, claimed = self.json_request(
             "POST",
-            f"/api/claim?k={key}",
-            {"period_key": today.isoformat()},
+            f"/api/debug/feed?k={key}",
+            {},
         )
         self.assertEqual(200, status)
         status, _, ledger = self.json_request(
@@ -520,7 +508,6 @@ class TestRequestHardening(VaultHttpTestCase):
         cases = (
             ("POST", f"/api/claim?k={key}", {"period_key": None}),
             ("POST", f"/api/harvest/pig?k={key}", {"pig_id": []}),
-            ("POST", f"/api/harvest/page?k={key}", {"page_no": "one"}),
             (
                 "POST",
                 f"/api/exchange/preview?k={key}",
