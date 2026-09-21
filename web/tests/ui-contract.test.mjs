@@ -47,6 +47,8 @@ test("door.js wires debug-only photo-rail feed on the shared right menu", () => 
   assert.match(js, /rail-feed/);
   assert.match(js, /\/api\/debug\/feed/);
   assert.match(js, /ins-icon/);
+  assert.match(js, /"debug"/);
+  assert.match(js, /切換測試/);
 });
 
 test("index.html does not link a static manifest", () => {
