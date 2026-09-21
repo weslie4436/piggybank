@@ -41,6 +41,14 @@ test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
   assert.match(html, /id="photo-rail"/);
 });
 
+test("door.js wires debug-only photo-rail feed on the shared right menu", () => {
+  const js = read("door.js");
+  assert.match(js, /piggybank\.debug/);
+  assert.match(js, /rail-feed/);
+  assert.match(js, /\/api\/debug\/feed/);
+  assert.match(js, /ins-icon/);
+});
+
 test("index.html does not link a static manifest", () => {
   const html = read("index.html");
   assert.doesNotMatch(html, /<link[^>]*rel=["']manifest["']/i);
