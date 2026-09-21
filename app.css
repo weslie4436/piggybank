@@ -65,7 +65,7 @@ html, body {
   margin: 0;
   min-height: 100%;
   overflow-x: clip;
-  touch-action: pan-x pan-y;
+  touch-action: manipulation;
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
@@ -185,6 +185,8 @@ button {
   background: none;
   border: 0;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 button.invite-go {
   margin: 28px auto 0;
@@ -403,6 +405,8 @@ button.apple-next path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-lin
   line-height: 0;
   -webkit-appearance: none;
   appearance: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .ins-ring {
   position: absolute;
@@ -1743,6 +1747,7 @@ html.is-reading body {
   font-size: 32px;
   font-weight: 400;
   line-height: 1;
+  touch-action: manipulation;
 }
 .gate-key:active { background: rgba(38, 38, 38, 0.18); }
 .gate-del { font-size: 20px; background: transparent; }
