@@ -34,6 +34,7 @@
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
   const FAV_KEY = "piggybank.favs";
   const SEEN_KEY = "piggybank.lastSeenRevision";
+  const DEBUG_KEY = "piggybank.debug";
   const THEMES = [
     ["melody", "Melody"],
     ["kuromi", "Kuromi"],
@@ -98,6 +99,23 @@
 
   function saveFavs() {
     try { localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favs))); } catch (e) {}
+  }
+
+  function isDebug() {
+    try {
+      const flag = new URLSearchParams(location.search).get("debug");
+      if (flag === "0" || flag === "false") {
+        sessionStorage.removeItem(DEBUG_KEY);
+        return false;
+      }
+      if (flag) {
+        sessionStorage.setItem(DEBUG_KEY, "1");
+        return true;
+      }
+      return sessionStorage.getItem(DEBUG_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
   }
 
   function insButton(className, svg, label) {
@@ -852,7 +870,7 @@
     document.querySelectorAll("#warehouse .tile").forEach(function (el) {
       el.classList.toggle("is-pick", selected.has(el.dataset.id));
     });
-    showRail(selectMode && selected.size > 0);
+    showRail();
     document.documentElement.classList.toggle("is-select", selectMode);
   }
 
@@ -875,9 +893,11 @@
     paintPicks();
   }
 
-  function showRail(on) {
+  function showRail() {
     if (!rail) return;
-    if (!on) {
+    const selectOn = selectMode && selected.size > 0;
+    const debugOn = isDebug();
+    if (!selectOn && !debugOn) {
       rail.hidden = true;
       rail.innerHTML = "";
       document.documentElement.classList.remove("has-rail");
@@ -886,20 +906,45 @@
     rail.hidden = false;
     document.documentElement.classList.add("has-rail");
     rail.innerHTML = "";
-    const heart = insButton("rail-heart", HEART_RAIL, "愛心");
-    const allOn = Array.from(selected).every(function (id) { return favs.has(id); });
-    if (allOn) heart.classList.add("is-on");
-    heart.addEventListener("click", function () {
-      const turnOn = !allOn;
-      selected.forEach(function (id) {
-        if (turnOn) favs.add(id);
-        else favs.delete(id);
+    if (debugOn) {
+      const feed = insButton("rail-feed", COIN, "測試加錢");
+      feed.addEventListener("click", debugFeed);
+      rail.appendChild(feed);
+    }
+    if (selectOn) {
+      const heart = insButton("rail-heart", HEART_RAIL, "愛心");
+      const allOn = Array.from(selected).every(function (id) { return favs.has(id); });
+      if (allOn) heart.classList.add("is-on");
+      heart.addEventListener("click", function () {
+        const turnOn = !allOn;
+        selected.forEach(function (id) {
+          if (turnOn) favs.add(id);
+          else favs.delete(id);
+        });
+        saveFavs();
+        clearSelect();
+        paintWarehouse();
       });
-      saveFavs();
-      clearSelect();
-      paintWarehouse();
-    });
-    rail.appendChild(heart);
+      rail.appendChild(heart);
+    }
+  }
+
+  async function debugFeed() {
+    if (busy || !isDebug()) return;
+    busy = true;
+    setCabRun(true);
+    try {
+      const x = await api("/api/debug/feed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        timeout: 15000,
+      });
+      if (x.res && x.res.ok) await loadState(true);
+    } finally {
+      setCabRun(false);
+      busy = false;
+    }
   }
 
   function paintLedger(rows) {
@@ -979,6 +1024,7 @@
     paintActive(animate, feeding);
     paintClaim();
     paintWarehouse();
+    showRail();
     rememberRevision(snapshot.revision);
     if (prev != null && snapshot.revision === prev) return;
   }

@@ -350,6 +350,10 @@ def make_server(
                     self._string_field(payload, "period_key"),
                     datetime.now(TAIPEI),
                 )
+            if path == "/api/debug/feed":
+                self._require_personal()
+                self._read_json()
+                return service.debug_feed(datetime.now(TAIPEI))
             if path == "/api/harvest/pig":
                 self._require_personal()
                 payload = self._read_json()

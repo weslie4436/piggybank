@@ -448,5 +448,55 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         )
 
 
+class TestDebugFeed(PiggyServiceTestCase):
+    def test_debug_feed_fills_one_pig_and_records_ledger(self):
+        self.service.initialize(self.now)
+
+        result = self.service.debug_feed(self.now)
+
+        full = self.rows("SELECT * FROM pigs WHERE status='full'")[0]
+        active = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
+        ledger = self.rows("SELECT * FROM ledger")[0]
+        self.assertEqual(150, full["value"])
+        self.assertEqual((1, 1), (full["page_no"], full["slot_no"]))
+        self.assertEqual(0, active["value"])
+        self.assertEqual(
+            ("debug_feed", 150, 150, "測試加錢", 2),
+            (
+                ledger["kind"],
+                ledger["amount"],
+                ledger["balance_after"],
+                ledger["note"],
+                ledger["revision"],
+            ),
+        )
+        self.assertEqual(
+            {
+                "revision": 2,
+                "amount": 150,
+                "total": 150,
+            },
+            result,
+        )
+        self.assertEqual(2, self.store.snapshot()["revision"])
+
+    def test_debug_feed_can_fill_a_second_pig(self):
+        self.service.initialize(self.now)
+        self.service.debug_feed(self.now)
+
+        result = self.service.debug_feed(self.now)
+
+        full = self.rows(
+            """
+            SELECT * FROM pigs
+            WHERE status='full'
+            ORDER BY page_no, slot_no
+            """
+        )
+        self.assertEqual([150, 150], [row["value"] for row in full])
+        self.assertEqual([1, 2], [row["slot_no"] for row in full])
+        self.assertEqual(300, result["total"])
+
+
 if __name__ == "__main__":
     unittest.main()

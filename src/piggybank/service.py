@@ -1433,3 +1433,44 @@ class PiggyService:
                 "amount": selected["amount"],
                 "claim_kind": selected["claim_kind"],
             }
+
+    def debug_feed(self, now: datetime) -> dict:
+        self._require_aware(now)
+        timestamp = now.astimezone(TAIPEI).isoformat()
+        amount = 150
+        with self.store.transaction() as conn:
+            self._feed_in_transaction(conn, amount, timestamp)
+            total = conn.execute(
+                """
+                SELECT COALESCE(SUM(value), 0) AS total
+                FROM pigs
+                WHERE status IN ('growing','full','reserved')
+                """
+            ).fetchone()["total"]
+            revision = Store.bump_revision(conn)
+            conn.execute(
+                """
+                INSERT INTO ledger (
+                  id, kind, amount, balance_after, note,
+                  metadata, created_at, revision
+                )
+                VALUES (?, 'debug_feed', ?, ?, '測試加錢', ?, ?, ?)
+                """,
+                (
+                    uuid4().hex,
+                    amount,
+                    total,
+                    json.dumps(
+                        {"source": "debug"},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    timestamp,
+                    revision,
+                ),
+            )
+            return {
+                "revision": revision,
+                "amount": amount,
+                "total": total,
+            }

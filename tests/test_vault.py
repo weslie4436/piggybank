@@ -256,6 +256,16 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         )
         self.assertEqual(200, status)
         self.assertEqual(600, claimed["amount"])
+
+        status, _, debug_fed = self.json_request(
+            "POST",
+            f"/api/debug/feed?k={key}",
+            {},
+        )
+        self.assertEqual(200, status)
+        self.assertEqual(150, debug_fed["amount"])
+        self.assertGreaterEqual(debug_fed["total"], 750)
+
         pigs = self.rows(
             "SELECT * FROM pigs WHERE status='full' ORDER BY page_no, slot_no"
         )
@@ -323,6 +333,7 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             ("GET", "/api/state", None),
             ("GET", "/api/ledger", None),
             ("POST", "/api/claim", {"period_key": "2026-01-01"}),
+            ("POST", "/api/debug/feed", {}),
             ("POST", "/api/harvest/pig", {"pig_id": "pig"}),
             ("POST", "/api/harvest/page", {"page_no": 1}),
             (
