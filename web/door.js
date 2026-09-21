@@ -64,9 +64,9 @@
   let allowServerNow = 0;
   let allowOrigin = 0;
   let allowNext = 0;
-  const FEED_MS = 480;
-  const FEED_BOUNCE_AT = 290;
-  const FEED_SQUASH_MS = 420;
+  const FEED_MS = 320;
+  const FEED_BOUNCE_AT = 193;
+  const FEED_SQUASH_MS = 280;
   let guides = { foot: 88, coin: 22, show: false };
 
   function yen(n) {
@@ -864,7 +864,7 @@
         finish();
       }
       coin.addEventListener("animationend", onDone);
-      window.setTimeout(finish, FEED_MS + 80);
+      window.setTimeout(finish, FEED_MS + 50);
     }
     dropOne(0);
   }
