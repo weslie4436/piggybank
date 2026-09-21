@@ -65,6 +65,18 @@ test("door.js wires 銀行 紀錄 消費 on the shared right menu", () => {
   assert.match(js, /切換測試/);
 });
 
+test("debug 測試加錢 stays a distinct coin on the right rail", () => {
+  const js = read("door.js");
+  const bank = js.match(/insButton\("rail-bank",\s*([^,]+)/);
+  const feed = js.match(/insButton\("rail-feed",\s*([^,]+)/);
+  assert.ok(bank, "rail-bank missing");
+  assert.ok(feed, "rail-feed missing");
+  assert.notEqual(bank[1].trim(), feed[1].trim());
+  assert.match(js, /insButton\("rail-feed"[\s\S]*coin\.jpg/);
+  assert.match(js, /insertBefore\(feed,\s*rail\.firstChild\)/);
+  assert.match(js, /addEventListener\("click", debugFeed\)/);
+});
+
 test("index.html does not link a static manifest", () => {
   const html = read("index.html");
   assert.doesNotMatch(html, /<link[^>]*rel=["']manifest["']/i);

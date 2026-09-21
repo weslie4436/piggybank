@@ -807,9 +807,9 @@
     let feed = rail.querySelector(".rail-feed");
     if (isDebug()) {
       if (!feed) {
-        feed = insButton("rail-feed", COIN, "測試加錢");
+        feed = insButton("rail-feed", '<img src="./icons/coin.jpg" alt=""/>', "測試加錢");
         feed.addEventListener("click", debugFeed);
-        rail.appendChild(feed);
+        rail.insertBefore(feed, rail.firstChild);
       }
     } else if (feed) {
       feed.remove();
