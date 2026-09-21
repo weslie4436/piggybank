@@ -25,13 +25,15 @@
   const SCENE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 16.2l4.2-4.6 3 3.2 2.2-2.4 3.6 3.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="9" cy="9.2" r="1.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
   const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z"/></svg>';
   const HEART_RAIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
-  const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.8v8.4M10 9.4c.6-.7 1.4-1 2-1 1.2 0 2.1.7 2.1 1.8S13.2 12 12 12h-.8C10 12 9.1 12.7 9.1 13.8S10 15.6 12 15.6c.7 0 1.5-.3 2.1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
-  const PERSON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.4" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M6.2 18.6c.9-3.3 3.2-5 5.8-5s4.9 1.7 5.8 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
-  const LIST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12M6 12h12M6 17h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
-  const GRID = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="13.5" y="5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="5" y="13.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/><rect x="13.5" y="13.5" width="5.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+  const BANK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 11c.3-3.1 2.6-5.3 5.3-5.3 2 0 3.8 1.2 4.6 3h1.6c.8 0 1.4.7 1.4 1.5v1.9c0 2.7-1.8 5.1-4.8 5.9V20H9v-1.9C7.4 17.2 7 14.4 7.2 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="14.7" cy="10.7" r="0.85"/><path d="M7.2 11.6H5.3c-.7 0-1.3-.6-1.3-1.3V8.8M11.8 5.7V4.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const LEDGER = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.2" width="12" height="15.6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 8.5h6M9 12h6M9 15.5h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const SPEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8.5h10l-.8 10.3H7.8L7 8.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.4 8.5V7.2a2.6 2.6 0 0 1 5.2 0v1.3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+  const WRENCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.5a3.4 3.4 0 0 1 3.8 3.8l-2.4 2.4-2.2-2.2 2.4-2.4zM13.4 9.8L6.2 17l1.8 1.8 7.2-7.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
+  const THEME_KEY = "piggybank.theme";
+  const GUIDE_KEY = "piggybank.guides";
   const THEMES = [
     ["melody", "Melody"],
     ["kuromi", "Kuromi"],
@@ -65,6 +67,7 @@
   const FEED_MS = 480;
   const FEED_BOUNCE_AT = 290;
   const FEED_SQUASH_MS = 420;
+  let guides = { foot: 88, coin: 22, show: false };
 
   function yen(n) {
     return String(Math.max(0, Math.round(Number(n) || 0))) + " 元";
@@ -101,8 +104,118 @@
   }
 
   function paintDebugChrome() {
-    const row = document.querySelector('.settings-entry[data-job="debug"]');
+    const row = document.querySelector('.settings-entry[data-job="gm"]');
     if (row) row.classList.toggle("is-host", isDebug());
+  }
+
+  function rememberedTheme() {
+    try { return localStorage.getItem(THEME_KEY) || ""; } catch (e) { return ""; }
+  }
+
+  function rememberTheme(theme) {
+    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+  }
+
+  function loadGuides() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(GUIDE_KEY) || "null");
+      if (!raw || typeof raw !== "object") return;
+      const foot = Number(raw.foot);
+      const coin = Number(raw.coin);
+      if (Number.isFinite(foot)) guides.foot = Math.min(96, Math.max(4, foot));
+      if (Number.isFinite(coin)) guides.coin = Math.min(96, Math.max(4, coin));
+      guides.show = !!raw.show;
+    } catch (e) {}
+  }
+
+  function saveGuides() {
+    try { localStorage.setItem(GUIDE_KEY, JSON.stringify(guides)); } catch (e) {}
+  }
+
+  function clampGuide(n) {
+    return Math.min(96, Math.max(4, n));
+  }
+
+  function applyGuides() {
+    const stage = document.querySelector(".pig-stage");
+    if (!stage) return;
+    stage.style.setProperty("--pig-foot-y", guides.foot + "%");
+    stage.style.setProperty("--pig-coin-y", guides.coin + "%");
+    let layer = document.getElementById("pig-guides");
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.id = "pig-guides";
+      layer.className = "pig-guides";
+      layer.setAttribute("aria-hidden", "true");
+      [["coin", "投幣點"], ["foot", "腳點"]].forEach(function (pair) {
+        const row = document.createElement("div");
+        row.className = "pig-guide";
+        row.dataset.guide = pair[0];
+        const label = document.createElement("span");
+        label.textContent = pair[1];
+        row.appendChild(label);
+        layer.appendChild(row);
+      });
+      stage.appendChild(layer);
+      bindGuideDrag(layer);
+    }
+    layer.classList.toggle("is-on", !!guides.show);
+    layer.querySelectorAll(".pig-guide").forEach(function (row) {
+      row.style.top = (row.dataset.guide === "foot" ? guides.foot : guides.coin) + "%";
+    });
+  }
+
+  function bindGuideDrag(layer) {
+    let active = "";
+    function yToPct(clientY) {
+      const stage = document.querySelector(".pig-stage");
+      if (!stage) return 50;
+      const box = stage.getBoundingClientRect();
+      if (!box.height) return 50;
+      return clampGuide(((clientY - box.top) / box.height) * 100);
+    }
+    function move(ev) {
+      if (!active) return;
+      const pct = yToPct(ev.clientY);
+      if (active === "foot") guides.foot = pct;
+      else guides.coin = pct;
+      applyGuides();
+    }
+    function stop() {
+      if (!active) return;
+      active = "";
+      saveGuides();
+    }
+    layer.addEventListener("pointerdown", function (ev) {
+      const row = ev.target.closest(".pig-guide");
+      if (!row || !guides.show) return;
+      active = row.dataset.guide || "";
+      try { row.setPointerCapture(ev.pointerId); } catch (e) {}
+      ev.preventDefault();
+      move(ev);
+    });
+    layer.addEventListener("pointermove", move);
+    layer.addEventListener("pointerup", stop);
+    layer.addEventListener("pointercancel", stop);
+  }
+
+  function addSwitch(body, label, on, onChange) {
+    const lab = document.createElement("label");
+    lab.className = "ask-skip";
+    const name = document.createElement("span");
+    name.textContent = label;
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("role", "switch");
+    input.checked = !!on;
+    const sw = document.createElement("span");
+    sw.className = "ask-sw";
+    lab.appendChild(name);
+    lab.appendChild(input);
+    lab.appendChild(sw);
+    input.addEventListener("change", function () { onChange(!!input.checked, input); });
+    body.appendChild(lab);
+    return input;
   }
 
   function insButton(className, svg, label) {
@@ -329,9 +442,8 @@
     }
     menu.appendChild(gearRow(CAMERA, "更換頭像", "cover", function () { openCoverCard(); }));
     menu.appendChild(gearRow(SCENE, "更換背景", "backdrop", function () { openBackdropCard(); }));
-    menu.appendChild(gearRow(COIN, "零用金設定", "allowance", function () { openAllowanceCard(); }));
     menu.appendChild(gearRow(PALETTE, "主題選擇", "theme", function () { openThemeCard(); }));
-    menu.appendChild(gearRow(PERSON, "切換測試", "debug", function () { setDebug(!isDebug()); }));
+    menu.appendChild(gearRow(WRENCH, "GM功能", "gm", function () { openGmCard(); }));
     paintDebugChrome();
     toggle.addEventListener("click", function (ev) {
       ev.preventDefault();
@@ -475,48 +587,59 @@
 
   function openThemeCard() {
     openAct("主題選擇", function (body) {
-      const err = document.createElement("p");
-      err.className = "err";
-      body.appendChild(err);
-      let chosen = "melody";
+      const picks = document.createElement("div");
+      picks.className = "theme-picks";
+      const current = document.documentElement.getAttribute("data-theme") || "melody";
       THEMES.forEach(function (pair) {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "news-row";
+        btn.className = "theme-pick" + (pair[0] === current ? " is-on" : "");
+        btn.dataset.theme = pair[0];
         btn.textContent = pair[1];
         btn.addEventListener("click", function () {
-          chosen = pair[0];
-          body.querySelectorAll(".news-row").forEach(function (el) {
+          applyTheme(pair[0]);
+          rememberTheme(pair[0]);
+          picks.querySelectorAll(".theme-pick").forEach(function (el) {
             el.classList.toggle("is-on", el === btn);
           });
         });
-        body.appendChild(btn);
+        picks.appendChild(btn);
       });
-      let pin = "";
-      pinPad(body, function (value) { pin = value; });
-      const go = document.createElement("button");
-      go.type = "button";
-      go.className = "tag-apply";
-      go.innerHTML = '<span class="tag-apply-face">確認</span>';
-      go.addEventListener("click", async function () {
-        if (pin.length !== 6) {
-          err.textContent = "請輸入六位數 PIN";
-          return;
-        }
-        const x = await window.FamiGate.api("/api/settings/theme", key, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ theme: chosen, pin: pin }),
-          timeout: 15000,
-        });
-        if (!x.res || !x.res.ok) {
-          err.textContent = (x.j && x.j.message) || "請再試一次";
-          return;
-        }
-        applyTheme(chosen);
+      body.appendChild(picks);
+    });
+  }
+
+  function openGmCard() {
+    openAct("GM功能", function (body) {
+      const allow = document.createElement("button");
+      allow.type = "button";
+      allow.className = "news-row";
+      const allowTitle = document.createElement("strong");
+      allowTitle.textContent = "零用金設定";
+      allow.appendChild(allowTitle);
+      allow.addEventListener("click", function () { openAllowanceCard(); });
+      body.appendChild(allow);
+      addSwitch(body, "切換測試", isDebug(), function (on) {
+        setDebug(on);
+        const feedBtn = body.querySelector(".gm-feed");
+        if (feedBtn) feedBtn.hidden = !on;
+      });
+      addSwitch(body, "對位線", guides.show, function (on) {
+        guides.show = on;
+        saveGuides();
+        applyGuides();
+        if (on) closeAct();
+      });
+      const feed = document.createElement("button");
+      feed.type = "button";
+      feed.className = "tag-apply gm-feed";
+      feed.hidden = !isDebug();
+      feed.innerHTML = '<span class="tag-apply-face">測試加錢</span>';
+      feed.addEventListener("click", function () {
         closeAct();
+        debugFeed();
       });
-      body.appendChild(go);
+      body.appendChild(feed);
     });
   }
 
@@ -576,10 +699,15 @@
     document.documentElement.setAttribute("data-theme", id);
   }
 
+  function pickTheme(theme) {
+    const allowed = { melody: 1, kuromi: 1, cinnamoroll: 1 };
+    return allowed[theme] ? theme : "";
+  }
+
   function renderMe(reader) {
     if (!reader || !cabHud) return;
     if (readerName) readerName.textContent = reader.display_name || "";
-    applyTheme(reader.theme);
+    applyTheme(pickTheme(rememberedTheme()) || reader.theme);
     if (faceImg) {
       faceImg.src = "./face-default.jpg?v=1";
       faceImg.hidden = false;
@@ -593,17 +721,28 @@
     const to = Math.max(0, Math.round(Number(next) || 0));
     const from = Number(el.dataset.v || 0) || 0;
     el.dataset.v = String(to);
+    if (el._roll) {
+      window.clearInterval(el._roll);
+      el._roll = 0;
+    }
     if (reduceMotion() || from === to) {
       el.textContent = String(to);
       return;
     }
-    const start = performance.now();
-    function tick(now) {
-      const t = Math.min(1, (now - start) / 420);
-      el.textContent = String(Math.round(from + (to - from) * t));
-      if (t < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
+    let cur = from;
+    el._roll = window.setInterval(function () {
+      const left = to - cur;
+      if (left === 0) {
+        window.clearInterval(el._roll);
+        el._roll = 0;
+        el.textContent = String(to);
+        return;
+      }
+      const span = Math.abs(left);
+      const step = span > 500 ? Math.ceil(span / 18) : span > 80 ? Math.ceil(span / 12) : span > 24 ? 2 : 1;
+      cur += left > 0 ? Math.min(step, left) : -Math.min(step, -left);
+      el.textContent = String(cur);
+    }, 40);
   }
 
   function spawnCoins(host, count) {
@@ -643,6 +782,7 @@
       }
       const coin = document.createElement("span");
       coin.className = "pig-coin is-dropping";
+      coin.style.setProperty("--pig-coin-y", guides.coin + "%");
       layer.appendChild(coin);
       window.setTimeout(function () {
         if (token !== feedToken) return;
@@ -791,35 +931,25 @@
     document.documentElement.classList.add("has-rail");
     if (!rail.dataset.ready) {
       rail.dataset.ready = "1";
-      const bank = insButton("rail-bank", COIN, "銀行");
+      const bank = insButton("rail-bank", BANK, "銀行");
       bank.dataset.mode = "bank";
       bank.addEventListener("click", function () { pickTab("bank"); });
-      const records = insButton("rail-ledger", LIST, "紀錄");
+      const records = insButton("rail-ledger", LEDGER, "紀錄");
       records.dataset.mode = "ledger";
       records.addEventListener("click", function () { pickTab("ledger"); });
-      const spend = insButton("rail-spend", GRID, "消費");
+      const spend = insButton("rail-spend", SPEND, "消費");
       spend.dataset.mode = "spend";
       spend.addEventListener("click", function () { pickTab("spend"); });
       rail.appendChild(bank);
       rail.appendChild(records);
       rail.appendChild(spend);
     }
-    let feed = rail.querySelector(".rail-feed");
-    if (isDebug()) {
-      if (!feed) {
-        feed = insButton("rail-feed", '<img src="./icons/coin.jpg" alt=""/>', "測試加錢");
-        feed.addEventListener("click", debugFeed);
-        rail.insertBefore(feed, rail.firstChild);
-      }
-    } else if (feed) {
-      feed.remove();
-    }
     paintRailModes();
   }
 
   function paintRailModes() {
     if (!rail) return;
-    rail.querySelectorAll(".rail-bank, .rail-ledger").forEach(function (el) {
+    rail.querySelectorAll(".rail-bank, .rail-ledger, .rail-spend").forEach(function (el) {
       const on = el.dataset.mode === hostTab;
       el.classList.toggle("is-off", !on);
       el.setAttribute("aria-pressed", on ? "true" : "false");
@@ -913,7 +1043,7 @@
     if (!x.res || !x.res.ok || !x.j) return;
     const prev = snapshot && snapshot.revision;
     snapshot = x.j;
-    if (snapshot.theme) applyTheme(snapshot.theme);
+    applyTheme(pickTheme(rememberedTheme()) || snapshot.theme);
     const added = Number(snapshot.total || 0) - paintedTotal;
     const animate = shouldAnimate(snapshot.revision) && feeding;
     paintOverview(animate);
@@ -1220,6 +1350,8 @@
       window.FamiGate.blockWebChrome();
       window.FamiGate.bindKeyboard();
     }
+    loadGuides();
+    applyGuides();
     key = window.PIGGY_VIEW_KEY || (window.FamiGate && window.FamiGate.currentKey()) || "";
     if (!document.getElementById("home-head")) {
       showInvite();
