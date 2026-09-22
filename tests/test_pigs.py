@@ -10,6 +10,7 @@ from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from piggybank.schedule import due_at
 from piggybank.service import DomainError, PiggyService
 from piggybank.store import Store
 
@@ -81,7 +82,7 @@ class TestInitializeAndAllowance(PiggyServiceTestCase):
         )
         self.assertEqual(1, len(rules))
         self.assertEqual(
-            (30, "daily", None, None, "2026-09-21"),
+            (30, "daily", None, None, "2026-09-15"),
             (
                 rules[0]["amount"],
                 rules[0]["period"],
@@ -91,6 +92,11 @@ class TestInitializeAndAllowance(PiggyServiceTestCase):
             ),
         )
         self.assertEqual(1, self.store.snapshot()["revision"])
+        opened = self.service.state(self.now)["claimable_periods"]
+        self.assertEqual(7, len(opened))
+        self.assertEqual("2026-09-15", opened[0]["period_key"])
+        self.assertEqual("2026-09-21", opened[-1]["period_key"])
+        self.assertTrue(all(item["amount"] == 30 for item in opened))
 
     def test_set_allowance_accepts_period_specific_fields_and_bumps_once(self):
         self.service.initialize(self.now)
@@ -363,8 +369,21 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         self.assertEqual("growing", state["active_pig"]["status"])
         self.assertEqual(80, state["active_pig"]["value"])
         self.assertNotIn("warehouse_pages", state)
+        starter_id = self.rows(
+            "SELECT id FROM allowance_rules ORDER BY effective_date, id"
+        )[0]["id"]
         self.assertEqual(
             [
+                {
+                    "period_key": f"2026-09-{day:02d}",
+                    "rule_id": starter_id,
+                    "amount": 30,
+                    "due_date": date(2026, 9, day),
+                    "claim_kind": "makeup",
+                }
+                for day in range(14, 20)
+            ]
+            + [
                 {
                     "period_key": "2026-09-21",
                     "rule_id": next_rule,
@@ -376,7 +395,7 @@ class TestWarehouseAndState(PiggyServiceTestCase):
             state["claimable_periods"],
         )
         self.assertEqual(
-            datetime(2026, 9, 22, 19, 0, tzinfo=TAIPEI).isoformat(),
+            due_at(date(2026, 9, 22)).isoformat(),
             state["next_allowance_at"],
         )
 

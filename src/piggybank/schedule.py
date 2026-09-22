@@ -7,7 +7,8 @@ from typing import Any, Collection, Mapping, Sequence
 from zoneinfo import ZoneInfo
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-ALLOWANCE_HOUR = 19
+ALLOWANCE_HOUR = 16
+STARTER_CLAIMABLE_DAYS = 7
 
 
 def period_key(due_date: date) -> str:
@@ -16,6 +17,17 @@ def period_key(due_date: date) -> str:
 
 def due_at(due_date: date) -> datetime:
     return datetime.combine(due_date, time(ALLOWANCE_HOUR), tzinfo=TAIPEI)
+
+
+def starter_effective_date(now: datetime) -> date:
+    """First due date so a new account already has seven claimable days."""
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+    current = now.astimezone(TAIPEI)
+    today = current.date()
+    if due_at(today) <= current:
+        return today - timedelta(days=STARTER_CLAIMABLE_DAYS - 1)
+    return today - timedelta(days=STARTER_CLAIMABLE_DAYS)
 
 
 def _sorted_rules(

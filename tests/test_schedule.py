@@ -5,7 +5,13 @@ from __future__ import annotations
 import unittest
 from datetime import date, datetime, timezone
 
-from piggybank.schedule import due_at, eligible_periods, next_allowance_at, period_key
+from piggybank.schedule import (
+    due_at,
+    eligible_periods,
+    next_allowance_at,
+    period_key,
+    starter_effective_date,
+)
 
 
 def rule(
@@ -50,11 +56,21 @@ class TestSchedule(unittest.TestCase):
             [(item["period_key"], item["claim_kind"]) for item in periods],
         )
 
-    def test_daily_becomes_claimable_at_seven_pm_taipei(self):
-        periods = eligible_periods(
-            [rule(1, 30, "daily", date(2026, 9, 19))],
+    def test_daily_becomes_claimable_at_four_pm_taipei(self):
+        rules = [rule(1, 30, "daily", date(2026, 9, 19))]
+        before = eligible_periods(
+            rules,
             [],
-            datetime(2026, 9, 21, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 7, 59, tzinfo=timezone.utc),
+        )
+        self.assertEqual(
+            ["2026-09-19", "2026-09-20"],
+            [item["period_key"] for item in before],
+        )
+        periods = eligible_periods(
+            rules,
+            [],
+            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
         )
         self.assertEqual(
             [
@@ -65,11 +81,38 @@ class TestSchedule(unittest.TestCase):
             [(item["period_key"], item["claim_kind"]) for item in periods],
         )
         nxt = next_allowance_at(
-            [rule(1, 30, "daily", date(2026, 9, 19))],
+            rules,
             {"2026-09-19", "2026-09-20", "2026-09-21"},
-            datetime(2026, 9, 21, 11, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
         )
         self.assertEqual(due_at(date(2026, 9, 22)), nxt)
+
+    def test_starter_effective_date_opens_seven_default_days(self):
+        after_reset = datetime(2026, 9, 22, 8, 0, tzinfo=timezone.utc)
+        start = starter_effective_date(after_reset)
+        self.assertEqual(date(2026, 9, 16), start)
+        opened = eligible_periods(
+            [rule(1, 30, "daily", start)],
+            [],
+            after_reset,
+        )
+        self.assertEqual(7, len(opened))
+        self.assertTrue(all(item["amount"] == 30 for item in opened))
+        self.assertEqual("2026-09-22", opened[-1]["period_key"])
+
+        before_reset = datetime(2026, 9, 22, 7, 59, tzinfo=timezone.utc)
+        earlier = starter_effective_date(before_reset)
+        self.assertEqual(date(2026, 9, 15), earlier)
+        waiting = eligible_periods(
+            [rule(1, 30, "daily", earlier)],
+            [],
+            before_reset,
+        )
+        self.assertEqual(7, len(waiting))
+        self.assertEqual(
+            ["2026-09-15", "2026-09-21"],
+            [waiting[0]["period_key"], waiting[-1]["period_key"]],
+        )
 
     def test_weekly_only_produces_selected_weekday(self):
         periods = eligible_periods(
@@ -83,7 +126,7 @@ class TestSchedule(unittest.TestCase):
                 )
             ],
             [],
-            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc),
         )
 
         self.assertEqual(
@@ -103,7 +146,7 @@ class TestSchedule(unittest.TestCase):
                 )
             ],
             [],
-            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc),
         )
 
         self.assertEqual(
@@ -118,7 +161,7 @@ class TestSchedule(unittest.TestCase):
                 rule(2, 25, "daily", date(2026, 9, 20)),
             ],
             [],
-            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc),
         )
 
         self.assertEqual(
@@ -140,7 +183,7 @@ class TestSchedule(unittest.TestCase):
                 rule(1, 10, "daily", date(2026, 9, 18)),
             ],
             {"2026-09-20"},
-            datetime(2026, 9, 21, 8, 0, tzinfo=timezone.utc),
+            datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc),
         )
 
         self.assertEqual(

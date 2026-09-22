@@ -9,7 +9,13 @@ from uuid import uuid4
 
 from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
 from piggybank.portraits import meta, save_backdrop_image, save_cover_image
-from piggybank.schedule import TAIPEI, due_at, eligible_periods, next_allowance_at
+from piggybank.schedule import (
+    TAIPEI,
+    due_at,
+    eligible_periods,
+    next_allowance_at,
+    starter_effective_date,
+)
 from piggybank.store import Store
 
 DEFAULT_ALLOWANCE_AMOUNT = 30
@@ -1027,7 +1033,7 @@ class PiggyService:
                     """,
                     (
                         DEFAULT_ALLOWANCE_AMOUNT,
-                        current.date().isoformat(),
+                        starter_effective_date(current).isoformat(),
                         timestamp,
                     ),
                 )
