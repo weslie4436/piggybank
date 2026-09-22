@@ -457,12 +457,6 @@ def make_server(
                 account = self._account()
                 self._read_json()
                 return account.debug_feed(datetime.now(TAIPEI))
-            if path == "/api/harvest/pig":
-                payload = self._read_json()
-                return self._account().harvest_pig(
-                    self._string_field(payload, "pig_id"),
-                    datetime.now(TAIPEI),
-                )
             if path == "/api/exchange/preview":
                 payload = self._read_json()
                 return self._account().preview_exchange(

@@ -280,39 +280,17 @@ class PiggyService:
 
     @staticmethod
     def _accrue_in_transaction(conn, now: datetime) -> bool:
-        current = now.astimezone(TAIPEI)
-        changed = False
-        for pig in conn.execute(
+        leftover = conn.execute(
             """
-            SELECT id, pending_yield, daily_yield, yield_cap,
-                   last_yield_date, value
-            FROM pigs
-            WHERE status IN ('growing','reserved')
-              AND last_yield_date IS NOT NULL
-              AND value > 0
+            SELECT 1 FROM pigs
+            WHERE pending_yield > 0
+            LIMIT 1
             """
-        ):
-            cursor = datetime.fromisoformat(pig["last_yield_date"])
-            periods = int(
-                (current - cursor).total_seconds() // timedelta(days=1).total_seconds()
-            )
-            if periods <= 0:
-                continue
-            pending = min(
-                pig["yield_cap"],
-                pig["pending_yield"] + periods * pig["daily_yield"],
-            )
-            cursor += timedelta(days=periods)
-            conn.execute(
-                """
-                UPDATE pigs
-                SET pending_yield=?, last_yield_date=?
-                WHERE id=?
-                """,
-                (pending, cursor.isoformat(), pig["id"]),
-            )
-            changed = True
-        return changed
+        ).fetchone()
+        if leftover is None:
+            return False
+        conn.execute("UPDATE pigs SET pending_yield=0 WHERE pending_yield > 0")
+        return True
 
     @staticmethod
     def _feed_in_transaction(conn, amount: int, timestamp: str) -> None:
@@ -938,78 +916,14 @@ class PiggyService:
 
     def harvest_pig(self, pig_id: str, now: datetime) -> dict:
         self._require_aware(now)
-        timestamp = now.astimezone(TAIPEI).isoformat()
         with self.store.transaction() as conn:
-            self._accrue_in_transaction(conn, now)
-            pig = conn.execute(
-                """
-                SELECT id, status, value, pending_yield
-                FROM pigs
-                WHERE id=?
-                """,
-                (pig_id,),
-            ).fetchone()
-            if pig is not None and pig["status"] == "reserved":
-                raise DomainError(
-                    "pig_reserved",
-                    "這隻撲滿正在兌換中",
-                )
-            if (
-                pig is None
-                or pig["status"] != "growing"
-                or pig["pending_yield"] == 0
-            ):
-                raise DomainError(
-                    "nothing_to_harvest",
-                    "目前沒有可收的收益",
-                )
-
-            amount = pig["pending_yield"]
-            value = pig["value"] + amount
-            conn.execute(
-                """
-                UPDATE pigs
-                SET value=?, pending_yield=0
-                WHERE id=?
-                """,
-                (value, pig_id),
-            )
-            total = conn.execute(
-                """
-                SELECT COALESCE(SUM(value), 0) AS total
-                FROM pigs
-                WHERE status IN ('growing','full','reserved')
-                """
-            ).fetchone()["total"]
-            revision = Store.bump_revision(conn)
-            conn.execute(
-                """
-                INSERT INTO ledger (
-                  id, kind, amount, balance_after, note,
-                  metadata, created_at, revision
-                )
-                VALUES (?, 'pig_yield_harvest', ?, ?, '撲滿收益', ?, ?, ?)
-                """,
-                (
-                    uuid4().hex,
-                    amount,
-                    total,
-                    json.dumps(
-                        {"pig_id": pig_id},
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                    timestamp,
-                    revision,
-                ),
-            )
-            return {
-                "revision": revision,
-                "pig_id": pig_id,
-                "amount": amount,
-                "value": value,
-                "total": total,
-            }
+            changed = self._accrue_in_transaction(conn, now)
+            if changed:
+                Store.bump_revision(conn)
+        raise DomainError(
+            "nothing_to_harvest",
+            "目前沒有可收的收益",
+        )
 
     def initialize(self, now: datetime) -> None:
         self._require_aware(now)
@@ -1079,10 +993,7 @@ class PiggyService:
         if already_one:
             return False
         total = keeper["value"] + sum(pig["value"] for pig in extras)
-        pending = min(
-            keeper["yield_cap"],
-            keeper["pending_yield"] + sum(pig["pending_yield"] for pig in extras),
-        )
+        pending = 0
         last_yield = keeper["last_yield_date"]
         if last_yield is None:
             last_yield = next(

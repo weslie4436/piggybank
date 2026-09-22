@@ -1,14 +1,12 @@
-"""Tests for pig yield and complete-page bonus accounting."""
+"""Interest is retired until a later version."""
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
-from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from piggybank.service import DomainError, PiggyService
@@ -50,207 +48,51 @@ class YieldTestCase(unittest.TestCase):
         self.service.claim(now.date().isoformat(), now)
 
 
-class TestPigAccrual(YieldTestCase):
-    def test_full_pig_accrues_only_after_complete_24_hours(self):
+class TestInterestRetired(YieldTestCase):
+    def test_balance_does_not_grow_overnight(self):
         self.claim(150)
-        revision = self.store.snapshot()["revision"]
-
-        before_period = self.service.accrue(
-            START + timedelta(hours=23, minutes=59)
-        )
+        later = self.service.state(START + timedelta(days=4))
         pig = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertEqual(
-            {"revision": revision, "changed": False},
-            before_period,
-        )
+        self.assertEqual(150, later["total"])
+        self.assertEqual(0, later["active_pig"]["pending_yield"])
         self.assertEqual(0, pig["pending_yield"])
-        self.assertEqual(START.isoformat(), pig["last_yield_date"])
+        self.assertEqual(150, pig["value"])
 
-        at_period = self.service.accrue(START + timedelta(hours=24))
-        pig = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertEqual(
-            {"revision": revision + 1, "changed": True},
-            at_period,
-        )
-        self.assertEqual(1, pig["pending_yield"])
-        self.assertEqual(
-            (START + timedelta(days=1)).isoformat(),
-            pig["last_yield_date"],
-        )
-
-    def test_offline_cap_still_advances_cursor_all_elapsed_periods(self):
-        self.claim(150)
-
-        first = self.service.accrue(START + timedelta(days=4))
-        pig = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        self.assertTrue(first["changed"])
-        self.assertEqual(3, pig["pending_yield"])
-        self.assertEqual(
-            (START + timedelta(days=4)).isoformat(),
-            pig["last_yield_date"],
-        )
-
-        repeated = self.service.accrue(START + timedelta(days=4))
-        self.assertEqual(
-            {"revision": first["revision"], "changed": False},
-            repeated,
-        )
-
-    def test_reserved_accrues_but_broken_does_not(self):
-        self.claim(150)
-        reserved_id = self.rows(
-            "SELECT id FROM pigs WHERE status='growing'"
-        )[0]["id"]
-        broken_id = uuid4().hex
-        self.execute(
-            """
-            UPDATE pigs
-            SET status='reserved', reserved_exchange_id='exchange-1'
-            WHERE id=?
-            """,
-            (reserved_id,),
-        )
-        self.execute(
-            """
-            INSERT INTO pigs (
-              id, tier_id, status, capacity, value, hit_count,
-              daily_yield, yield_cap, last_yield_date, created_at
-            )
-            VALUES (?, 'basic-150', 'broken', 150, 150, 5, 1, 3, ?, ?)
-            """,
-            (broken_id, START.isoformat(), START.isoformat()),
-        )
-
-        self.service.accrue(START + timedelta(days=1))
-
-        pigs = {
-            row["id"]: row
-            for row in self.rows(
-                "SELECT id, pending_yield, last_yield_date FROM pigs"
-            )
-        }
-        self.assertEqual(1, pigs[reserved_id]["pending_yield"])
-        self.assertEqual(
-            (START + timedelta(days=1)).isoformat(),
-            pigs[reserved_id]["last_yield_date"],
-        )
-        self.assertEqual(0, pigs[broken_id]["pending_yield"])
-        self.assertEqual(START.isoformat(), pigs[broken_id]["last_yield_date"])
-
-class TestPigHarvest(YieldTestCase):
-    def test_harvest_accrues_into_original_pig_and_records_one_revision(self):
+    def test_leftover_pending_yield_is_cleared_without_paying_it(self):
         self.claim(150)
         pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
-
-        result = self.service.harvest_pig(
-            pig_id,
-            START + timedelta(days=1),
-        )
-
-        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
-        ledger = self.rows("SELECT * FROM ledger ORDER BY revision DESC")[0]
-        self.assertEqual((151, 0), (pig["value"], pig["pending_yield"]))
-        self.assertEqual(
-            {
-                "revision": 4,
-                "pig_id": pig_id,
-                "amount": 1,
-                "value": 151,
-                "total": 151,
-            },
-            result,
-        )
-        self.assertEqual(
-            ("pig_yield_harvest", 1, 151, "撲滿收益", 4),
-            (
-                ledger["kind"],
-                ledger["amount"],
-                ledger["balance_after"],
-                ledger["note"],
-                ledger["revision"],
-            ),
-        )
-        self.assertEqual({"pig_id": pig_id}, json.loads(ledger["metadata"]))
-        self.assertEqual(
-            (START + timedelta(days=1)).isoformat(),
-            ledger["created_at"],
-        )
-
-    def test_harvest_after_cap_does_not_refill_blocked_history(self):
-        self.claim(150)
-        pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
-
-        harvested = self.service.harvest_pig(
-            pig_id,
-            START + timedelta(days=4),
-        )
-        after_minute = self.service.accrue(
-            START + timedelta(days=4, minutes=1)
-        )
-
-        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
-        self.assertEqual(3, harvested["amount"])
-        self.assertEqual(0, pig["pending_yield"])
-        self.assertEqual(
-            (START + timedelta(days=4)).isoformat(),
-            pig["last_yield_date"],
-        )
-        self.assertEqual(
-            {"revision": harvested["revision"], "changed": False},
-            after_minute,
-        )
-
-    def test_empty_and_reserved_pigs_are_rejected_without_changes(self):
-        self.claim(150)
-        pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
-        revision = self.store.snapshot()["revision"]
-
-        with self.assertRaises(DomainError) as empty:
-            self.service.harvest_pig(pig_id, START)
-        self.assertEqual("nothing_to_harvest", empty.exception.code)
-        self.assertEqual("目前沒有可收的收益", str(empty.exception))
-
         self.execute(
-            """
-            UPDATE pigs
-            SET status='reserved', reserved_exchange_id='exchange-1'
-            WHERE id=?
-            """,
+            "UPDATE pigs SET pending_yield=3 WHERE id=?",
             (pig_id,),
         )
-        with self.assertRaises(DomainError) as reserved:
-            self.service.harvest_pig(
-                pig_id,
-                START + timedelta(days=1),
-            )
-        self.assertEqual("pig_reserved", reserved.exception.code)
-        self.assertEqual("這隻撲滿正在兌換中", str(reserved.exception))
+
+        result = self.service.accrue(START + timedelta(days=1))
+        pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
+        self.assertTrue(result["changed"])
+        self.assertEqual(0, pig["pending_yield"])
+        self.assertEqual(150, pig["value"])
+
+    def test_harvest_is_rejected_and_does_not_change_the_balance(self):
+        self.claim(150)
+        pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
+        self.execute(
+            "UPDATE pigs SET pending_yield=3 WHERE id=?",
+            (pig_id,),
+        )
+        revision = self.store.snapshot()["revision"]
+
+        with self.assertRaises(DomainError) as harvested:
+            self.service.harvest_pig(pig_id, START + timedelta(days=1))
+        self.assertEqual("nothing_to_harvest", harvested.exception.code)
 
         pig = self.rows("SELECT * FROM pigs WHERE id=?", (pig_id,))[0]
         self.assertEqual(0, pig["pending_yield"])
-        self.assertEqual(START.isoformat(), pig["last_yield_date"])
-        self.assertEqual(revision, self.store.snapshot()["revision"])
+        self.assertEqual(150, pig["value"])
         self.assertEqual(
             ["allowance_claim"],
             [row["kind"] for row in self.rows("SELECT kind FROM ledger")],
         )
-
-
-class TestStateAndTimeValidation(YieldTestCase):
-    def test_state_accrues_before_snapshot_and_same_time_is_idempotent(self):
-        self.claim(150)
-        now = START + timedelta(days=1)
-
-        first = self.service.state(now)
-        second = self.service.state(now)
-
-        pig_id = self.rows("SELECT id FROM pigs WHERE status='growing'")[0]["id"]
-        self.assertEqual(pig_id, first["active_pig"]["id"])
-        self.assertEqual(1, first["active_pig"]["pending_yield"])
-        self.assertEqual(4, first["revision"])
-        self.assertEqual(150, first["total"])
-        self.assertEqual(first["revision"], second["revision"])
-        self.assertEqual(1, second["active_pig"]["pending_yield"])
+        self.assertGreaterEqual(self.store.snapshot()["revision"], revision)
 
     def test_all_service_now_arguments_reject_naive_datetimes(self):
         self.claim(150)
@@ -293,4 +135,3 @@ class TestStateAndTimeValidation(YieldTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

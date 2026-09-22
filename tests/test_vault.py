@@ -281,7 +281,7 @@ class TestDoorJoinAndPersonalAuth(VaultHttpTestCase):
 
 
 class TestChildMoneyEndpoints(VaultHttpTestCase):
-    def test_claim_harvest_preview_reserve_status_and_cancel_succeed(self):
+    def test_claim_preview_reserve_status_and_cancel_succeed(self):
         yesterday = (self.now - timedelta(days=1)).date()
         self.service.set_allowance(600, "daily", yesterday, self.now)
         key = quote(self.personal)
@@ -306,18 +306,6 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             "SELECT * FROM pigs WHERE status='growing' ORDER BY created_at, id"
         )
 
-        self.execute(
-            "UPDATE pigs SET pending_yield=1 WHERE id=?",
-            (pigs[0]["id"],),
-        )
-        status, _, harvested = self.json_request(
-            "POST",
-            f"/api/harvest/pig?k={key}",
-            {"pig_id": pigs[0]["id"]},
-        )
-        self.assertEqual(200, status)
-        self.assertEqual(1, harvested["amount"])
-
         selected = [pigs[0]["id"]]
         status, _, preview = self.json_request(
             "POST",
@@ -325,7 +313,7 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             {"amount": 100, "child_note": "ignored", "pig_ids": selected},
         )
         self.assertEqual(200, status)
-        self.assertEqual(pigs[0]["value"] + 1 - 100, preview["change_amount"])
+        self.assertEqual(pigs[0]["value"] - 100, preview["change_amount"])
 
         status, _, reservation = self.json_request(
             "POST",
@@ -359,7 +347,6 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             ("GET", "/api/ledger", None),
             ("POST", "/api/claim", {"period_key": "2026-01-01"}),
             ("POST", "/api/debug/feed", {}),
-            ("POST", "/api/harvest/pig", {"pig_id": "pig"}),
             (
                 "POST",
                 "/api/exchange/preview",
@@ -543,7 +530,6 @@ class TestRequestHardening(VaultHttpTestCase):
         key = quote(self.personal)
         cases = (
             ("POST", f"/api/claim?k={key}", {"period_key": None}),
-            ("POST", f"/api/harvest/pig?k={key}", {"pig_id": []}),
             (
                 "POST",
                 f"/api/exchange/preview?k={key}",

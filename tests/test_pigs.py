@@ -341,7 +341,7 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         self.assertEqual(1, len(pigs))
         self.assertEqual(pig_id, pigs[0]["id"])
         self.assertEqual(150, pigs[0]["value"])
-        self.assertEqual(1, pigs[0]["pending_yield"])
+        self.assertEqual(0, pigs[0]["pending_yield"])
         self.assertIsNone(pigs[0]["page_no"])
         self.assertEqual([extra], [row["id"] for row in broken])
 

@@ -1053,11 +1053,6 @@
     });
   }
 
-  function harvestable() {
-    const pig = snapshot && snapshot.active_pig;
-    return pig ? Number(pig.pending_yield || 0) || 0 : 0;
-  }
-
   function paintOverview(animate) {
     const total = snapshot ? Number(snapshot.total || 0) : 0;
     if (claimInflight > 0 || moneyHold > 0) return;
@@ -1073,23 +1068,9 @@
   }
 
   function paintActive(animate, feeding, feedAmount) {
-    const pig = snapshot && snapshot.active_pig;
     if (pigBlock) {
-      pigBlock.classList.toggle("is-harvesting", harvestable() > 0);
       if (feeding && animate && feedAmount > 0) burstCoin(feedAmount);
       if (feeding && animate && feedAmount < 0) bouncePig();
-    }
-    const layer = document.querySelector("#active-pig .pig-coins");
-    if (layer && harvestable() > 0 && !layer.querySelector(".pig-coin:not(.is-dropping)")) {
-      const coin = document.createElement("span");
-      coin.className = "pig-coin";
-      coin.style.left = "38%";
-      coin.style.top = "12%";
-      layer.appendChild(coin);
-    } else if (layer && harvestable() <= 0) {
-      Array.from(layer.querySelectorAll(".pig-coin:not(.is-dropping)")).forEach(function (el) {
-        el.remove();
-      });
     }
   }
 
@@ -1380,22 +1361,6 @@
   async function loadLedger() {
     const x = await api("/api/ledger?limit=50", { timeout: 15000 });
     paintLedger(x.j || []);
-  }
-
-  async function harvestPig(id) {
-    if (busy) return;
-    busy = true;
-    try {
-      const x = await api("/api/harvest/pig", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pig_id: id }),
-        timeout: 15000,
-      });
-      if (x.res && x.res.ok) await loadState(true);
-    } finally {
-      busy = false;
-    }
   }
 
   function closeExchange() {
@@ -1872,13 +1837,6 @@
     ev.preventDefault();
     ev.stopPropagation();
     claimOnce();
-  });
-
-  if (pigBlock) pigBlock.addEventListener("click", function () {
-    if (ignoreClick) return;
-    const pig = snapshot && snapshot.active_pig;
-    if (!pig || harvestable() <= 0) return;
-    harvestPig(pig.id);
   });
 
   const actClose = document.getElementById("actClose");
