@@ -13,7 +13,7 @@
     {
       appId: "piggybank",
       viewKeyStorage: "piggybank.viewKey",
-      productLabel: "小金庫",
+      productLabel: "小豬銀行",
     },
     typeof window !== "undefined" && window.FAMIGATE_CONFIG ? window.FAMIGATE_CONFIG : {}
   );

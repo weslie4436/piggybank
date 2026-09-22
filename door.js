@@ -19,7 +19,7 @@
   const rail = document.getElementById("photo-rail");
   const pigBlock = document.getElementById("pig-block");
   const ovTotal = document.getElementById("ovTotal");
-  const claimBtn = document.getElementById("claim-apply");
+  const claimBubble = document.getElementById("claim-bubble");
   const ledger = document.getElementById("ledger");
   const GEAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.8l.6-1.3h3.6l.6 1.3 1.6.7 1.4-.5 2.5 2.5-.5 1.4.7 1.6 1.3.6v3.6l-1.3.6-.7 1.6.5 1.4-2.5 2.5-1.4-.5-1.6.7-.6 1.3h-3.6l-.6-1.3-1.6-.7-1.4.5-2.5-2.5.5-1.4-.7-1.6-1.3-.6v-3.6l1.3-.6.7-1.6-.5-1.4L6.6 4l1.4.5 1.6-.7z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><circle cx="12" cy="11.9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
   const CAMERA = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="8" width="17" height="11.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8l1.4-2.4h5.2L16 8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13.6" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
@@ -27,8 +27,6 @@
   const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z"/></svg>';
   const HEART_RAIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
-  const BANK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 11c.3-3.1 2.6-5.3 5.3-5.3 2 0 3.8 1.2 4.6 3h1.6c.8 0 1.4.7 1.4 1.5v1.9c0 2.7-1.8 5.1-4.8 5.9V20H9v-1.9C7.4 17.2 7 14.4 7.2 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="14.7" cy="10.7" r="0.85"/><path d="M7.2 11.6H5.3c-.7 0-1.3-.6-1.3-1.3V8.8M11.8 5.7V4.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
-  const LEDGER = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4.2" width="12" height="15.6" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9 8.5h6M9 12h6M9 15.5h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
   const SPEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8.5h10l-.8 10.3H7.8L7 8.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.4 8.5V7.2a2.6 2.6 0 0 1 5.2 0v1.3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
   const WRENCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.5a3.4 3.4 0 0 1 3.8 3.8l-2.4 2.4-2.2-2.2 2.4-2.4zM13.4 9.8L6.2 17l1.8 1.8 7.2-7.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
@@ -57,14 +55,16 @@
   let exSettled = false;
   let exPoll = 0;
   let paintedTotal = 0;
-  let feedToken = 0;
+  let claimInflight = 0;
+  let claimSerial = Promise.resolve();
+  let moneyHold = 0;
+  let ignoreClick = false;
+  const pendingClaim = Object.create(null);
+  const COIN_MS = 460;
   let allowTimer = 0;
   let allowServerNow = 0;
   let allowOrigin = 0;
   let allowNext = 0;
-  const FEED_MS = 320;
-  const FEED_BOUNCE_AT = 193;
-  const FEED_SQUASH_MS = 280;
   let guides = { foot: 88, coin: 22, show: false };
 
   function yen(n) {
@@ -798,73 +798,71 @@
     pigBlock.classList.add("is-feeding");
   }
 
-  function playFeedCoins(amount) {
+  function playCoinSound() {
+    const node = new Audio("./sounds/coin.wav?v=1");
+    node.volume = 0.5;
+    const played = node.play();
+    if (played && played.catch) played.catch(function () {});
+  }
+
+  function chaseTotal(el) {
+    if (!el || el._chase) return;
+    let from = Number(el.textContent) || 0;
+    let fromAt = Date.now();
+    let goal = Number(el.dataset.v) || 0;
+    el._chase = window.setInterval(function () {
+      const now = Date.now();
+      const target = Number(el.dataset.v) || 0;
+      if (target !== goal) {
+        from = Number(el.textContent) || 0;
+        fromAt = now;
+        goal = target;
+      }
+      const t = Math.min(1, (now - fromAt) / COIN_MS);
+      const cur = Math.round(from + (goal - from) * t);
+      el.textContent = String(cur);
+      if (t >= 1 && Number(el.textContent) === goal) {
+        window.clearInterval(el._chase);
+        el._chase = 0;
+      }
+    }, 32);
+  }
+
+  function burstCoin(amount) {
+    const add = Math.max(0, Math.round(Number(amount) || 0));
     const ovNum = document.getElementById("ovNum");
-    const total = snapshot ? Number(snapshot.total || 0) : 0;
-    const add = Math.max(0, Math.round(Number(amount || 0)));
-    const n = Math.floor(add / 10);
-    const layer = document.querySelector("#active-pig .pig-coins");
-    function settle() {
-      if (ovNum) {
-        const cur = Number(ovNum.dataset.v || 0) || 0;
-        countByOnes(ovNum, total - cur, 80, function () {
-          ovNum.textContent = String(total);
-          ovNum.dataset.v = String(total);
-          paintedTotal = total;
-        });
-      } else paintedTotal = total;
+    if (!add) return;
+    if (ovNum) {
+      const base = Number(ovNum.dataset.v || ovNum.textContent || 0) || 0;
+      const next = base + add;
+      ovNum.dataset.v = String(next);
+      paintedTotal = next;
+      if (reduceMotion()) ovNum.textContent = String(next);
+      else chaseTotal(ovNum);
     }
-    if (!pigBlock || !layer || !n) {
-      if (ovNum && add) countByOnes(ovNum, add, FEED_MS, settle);
-      else settle();
-      return;
+    playCoinSound();
+    if (!ovNum || reduceMotion()) return;
+    moneyHold += 1;
+    const coin = document.createElement("span");
+    coin.className = "money-coin";
+    coin.style.setProperty("--jx", ((moneyHold % 5) - 2) * 8 + "px");
+    ovNum.appendChild(coin);
+    let finished = false;
+    function done() {
+      if (finished) return;
+      finished = true;
+      coin.removeEventListener("animationend", onEnd);
+      if (coin.parentNode) coin.remove();
+      moneyHold = Math.max(0, moneyHold - 1);
+      if (moneyHold === 0 && claimInflight === 0) paintOverview(false);
     }
-    const token = ++feedToken;
-    stopRoll(ovNum);
-    function dropOne(i) {
-      if (token !== feedToken) return;
-      if (i >= n) {
-        window.setTimeout(function () {
-          if (token === feedToken && pigBlock) pigBlock.classList.remove("is-feeding");
-        }, FEED_SQUASH_MS);
-        settle();
-        return;
-      }
-      const coin = document.createElement("span");
-      coin.className = "pig-coin is-dropping";
-      coin.style.setProperty("--pig-coin-y", guides.coin + "%");
-      layer.appendChild(coin);
-      window.setTimeout(function () {
-        if (token !== feedToken) return;
-        bouncePig();
-      }, FEED_BOUNCE_AT);
-      let finished = false;
-      let coinDone = false;
-      let countDone = false;
-      function maybeNext() {
-        if (token !== feedToken) return;
-        if (coinDone && countDone) dropOne(i + 1);
-      }
-      countByOnes(ovNum, 10, FEED_MS, function () {
-        countDone = true;
-        maybeNext();
-      });
-      function finish() {
-        if (finished || token !== feedToken) return;
-        finished = true;
-        coin.removeEventListener("animationend", onDone);
-        if (coin.parentNode) coin.remove();
-        coinDone = true;
-        maybeNext();
-      }
-      function onDone(ev) {
-        if (ev && ev.target !== coin) return;
-        finish();
-      }
-      coin.addEventListener("animationend", onDone);
-      window.setTimeout(finish, FEED_MS + 50);
+    function onEnd(ev) {
+      if (ev.target !== coin) return;
+      if (ev.animationName && ev.animationName !== "coin-rise") return;
+      done();
     }
-    dropOne(0);
+    coin.addEventListener("animationend", onEnd);
+    window.setTimeout(done, COIN_MS + 80);
   }
 
   function setPigState(name, on) {
@@ -886,6 +884,7 @@
 
   function paintOverview(animate) {
     const total = snapshot ? Number(snapshot.total || 0) : 0;
+    if (claimInflight > 0 || moneyHold > 0) return;
     const ovNum = document.getElementById("ovNum");
     if (ovNum) {
       if (animate) rollNumber(ovNum, total);
@@ -901,7 +900,7 @@
     const pig = snapshot && snapshot.active_pig;
     if (pigBlock) {
       pigBlock.classList.toggle("is-harvesting", harvestable() > 0);
-      if (feeding && animate && feedAmount > 0) playFeedCoins(feedAmount);
+      if (feeding && animate && feedAmount > 0) burstCoin(feedAmount);
       if (feeding && animate && feedAmount < 0) bouncePig();
     }
     const layer = document.querySelector("#active-pig .pig-coins");
@@ -942,54 +941,86 @@
     allowTimer = window.setInterval(tick, 1000);
   }
 
+  function openClaims() {
+    return ((snapshot && snapshot.claimable_periods) || []).filter(function (item) {
+      return item && !pendingClaim[item.period_key];
+    });
+  }
+
   function paintClaim() {
-    if (!claimBtn) return;
-    const periods = (snapshot && snapshot.claimable_periods) || [];
-    const today = periods.find(function (item) { return item.claim_kind === "on_time"; }) || periods[0];
-    const caption = document.getElementById("allowCaption");
-    const ready = !!today;
-    claimBtn.hidden = false;
-    claimBtn.disabled = !ready;
-    claimBtn.classList.toggle("is-live", ready);
-    claimBtn.classList.toggle("is-ready", ready);
-    if (ready) {
-      claimBtn.dataset.period = today.period_key;
-      claimBtn.setAttribute("aria-label", "領取 " + today.amount + " 元");
-      if (caption) caption.textContent = "領取 " + today.amount + " 元";
-      stopAllowClock();
-    } else {
-      claimBtn.removeAttribute("data-period");
-      claimBtn.setAttribute("aria-label", "尚未可領");
-      if (caption) caption.textContent = "每晚 7 點發放";
-      startAllowClock(snapshot && snapshot.now, snapshot && snapshot.next_allowance_at);
+    const waiting = openClaims();
+    const text = document.getElementById("claim-text");
+    if (claimBubble) {
+      claimBubble.hidden = waiting.length <= 0;
+      claimBubble.setAttribute("aria-label", "有" + waiting.length + "筆零用錢可領取");
     }
+    if (text) text.textContent = "有" + waiting.length + "筆零用錢可領取";
+    if (waiting.length) stopAllowClock();
+    else startAllowClock(snapshot && snapshot.now, snapshot && snapshot.next_allowance_at);
+  }
+
+  function claimOnce() {
+    if (!ready) return;
+    const sheet = document.getElementById("exchange-sheet");
+    if (sheet && !sheet.hidden) return;
+    const next = openClaims()[0];
+    if (!next) return;
+    pendingClaim[next.period_key] = 1;
+    claimInflight += 1;
+    paintClaim();
+    burstCoin(next.amount);
+    claimSerial = claimSerial.then(function () {
+      return api("/api/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ period_key: next.period_key }),
+        timeout: 15000,
+      }).then(function (x) {
+        if (!x.res || !x.res.ok) delete pendingClaim[next.period_key];
+        return loadState(false);
+      }).finally(function () {
+        claimInflight = Math.max(0, claimInflight - 1);
+        delete pendingClaim[next.period_key];
+        paintClaim();
+        if (claimInflight === 0 && moneyHold === 0) paintOverview(false);
+      });
+    }).catch(function () {});
   }
 
   function showRail() {
-    if (!rail) return;
-    rail.hidden = false;
-    document.documentElement.classList.add("has-rail");
-    if (!rail.dataset.ready) {
-      rail.dataset.ready = "1";
-      const bank = insButton("rail-bank", BANK, "銀行");
-      bank.dataset.mode = "bank";
-      bank.addEventListener("click", function () { pickTab("bank"); });
-      const records = insButton("rail-ledger", LEDGER, "紀錄");
-      records.dataset.mode = "ledger";
-      records.addEventListener("click", function () { pickTab("ledger"); });
-      rail.appendChild(bank);
-      rail.appendChild(records);
-    }
-    paintRailModes();
+    if (rail) rail.hidden = true;
+    document.documentElement.classList.remove("has-rail");
   }
 
-  function paintRailModes() {
-    if (!rail) return;
-    rail.querySelectorAll(".rail-bank, .rail-ledger").forEach(function (el) {
-      const on = el.dataset.mode === hostTab;
-      el.classList.toggle("is-off", !on);
-      el.setAttribute("aria-pressed", on ? "true" : "false");
+  function sheetOpen() {
+    return !!document.querySelector(".batch-tag-mask:not([hidden]), .ask-mask:not([hidden])");
+  }
+
+  function bindSwipe() {
+    const host = document.getElementById("pig-home");
+    if (!host || host.dataset.swipe) return;
+    host.dataset.swipe = "1";
+    let track = null;
+    host.addEventListener("pointerdown", function (ev) {
+      if (!ready) return;
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      if (sheetOpen()) return;
+      if (ev.target && ev.target.closest && ev.target.closest("input, textarea, .settings-menu, .pig-say")) return;
+      track = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
     });
+    function end(ev) {
+      if (!track || (ev && ev.pointerId !== track.id)) return;
+      const dx = ev.clientX - track.x;
+      const dy = ev.clientY - track.y;
+      track = null;
+      if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+      ignoreClick = true;
+      window.setTimeout(function () { ignoreClick = false; }, 350);
+      if (dx < 0) pickTab("ledger");
+      else pickTab("bank");
+    }
+    host.addEventListener("pointerup", end);
+    host.addEventListener("pointercancel", function () { track = null; });
   }
 
   async function debugFeed() {
@@ -1366,10 +1397,10 @@
       booting = false;
       return;
     }
-    setBoot(true, "正在連接小金庫…");
+    setBoot(true, "正在連接小豬銀行…");
     try {
       if (!window.FamiGate.origin()) {
-        if (statusEl) statusEl.textContent = "正在連接小金庫…";
+        if (statusEl) statusEl.textContent = "正在連接小豬銀行…";
         scheduleReconnect();
         return;
       }
@@ -1517,27 +1548,15 @@
     }
   });
 
-  if (claimBtn) claimBtn.addEventListener("click", async function () {
-    if (busy || claimBtn.hidden || claimBtn.disabled) return;
-    const period = claimBtn.dataset.period;
-    if (!period) return;
-    busy = true;
-    setCabRun(true);
-    try {
-      const x = await api("/api/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period_key: period }),
-        timeout: 15000,
-      });
-      if (x.res && x.res.ok) await loadState(true);
-    } finally {
-      setCabRun(false);
-      busy = false;
-    }
+  bindSwipe();
+  if (claimBubble) claimBubble.addEventListener("click", function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    claimOnce();
   });
 
   if (pigBlock) pigBlock.addEventListener("click", function () {
+    if (ignoreClick) return;
     const pig = snapshot && snapshot.active_pig;
     if (!pig || harvestable() <= 0) return;
     harvestPig(pig.id);
@@ -1556,7 +1575,7 @@
   }
   if (ovTotal) {
     ovTotal.addEventListener("click", function () {
-      if (busy || !ready) return;
+      if (ignoreClick || busy || !ready) return;
       openExchange();
     });
   }

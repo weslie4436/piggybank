@@ -11,6 +11,7 @@
   const approveBtn = document.getElementById("exApprove");
   const NEED = 6;
   let typed = "";
+  let sealedPin = "";
   let busy = false;
   let exchange = null;
   let token = "";
@@ -37,8 +38,21 @@
     if (dotsEl) dotsEl.hidden = false;
   }
 
+  function sealPad(on) {
+    if (!padEl) return;
+    padEl.classList.toggle("is-sealed", !!on);
+  }
+
+  function closeNote() {
+    if (actMask) actMask.hidden = true;
+    sealPad(false);
+    sealedPin = "";
+  }
+
   function openNote() {
     if (!actBody) return;
+    sealedPin = typed;
+    sealPad(true);
     const head = document.getElementById("actTitle");
     if (head) head.textContent = "說明";
     actBody.innerHTML = "";
@@ -86,7 +100,8 @@
       if (err) err.textContent = "請填說明";
       return;
     }
-    if (typed.length !== NEED) {
+    const pin = sealedPin || typed;
+    if (pin.length !== NEED) {
       if (err) err.textContent = "請輸入六位數 PIN";
       return;
     }
@@ -97,19 +112,25 @@
       const x = await window.FamiGate.api("/api/exchange/approve", "", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ x: token, pin: typed, parent_note: note }),
+        body: JSON.stringify({ x: token, pin: pin, parent_note: note }),
         timeout: 20000,
       });
       if (!x.res || !x.res.ok || !x.j) {
         stopWait();
         if (dotsEl) dotsEl.classList.add("is-bad");
         window.setTimeout(function () { if (dotsEl) dotsEl.classList.remove("is-bad"); }, 400);
-        typed = "";
+        typed = pin;
         paintDots();
-        if (statusEl) statusEl.textContent = (x.j && x.j.message) || "PIN 不對";
+        openNote();
+        const again = document.getElementById("exErr");
+        const message = (x.j && x.j.message) || "PIN 不對";
+        if (again) again.textContent = message;
+        if (statusEl) statusEl.textContent = message;
         busy = false;
         return;
       }
+      sealedPin = "";
+      sealPad(false);
       if (statusEl) statusEl.textContent = "已核准";
       if (hey) hey.textContent = "完成";
       if (padEl) padEl.classList.add("is-off");
@@ -135,6 +156,8 @@
       const btn = ev.target && ev.target.closest ? ev.target.closest(".gate-key") : null;
       if (!btn || busy) return;
       if (btn.getAttribute("data-del")) {
+        sealedPin = "";
+        sealPad(false);
         typed = typed.slice(0, -1);
         paintDots();
         return;
@@ -142,19 +165,18 @@
       const num = btn.getAttribute("data-num");
       if (num == null) return;
       if (typed.length >= NEED) return;
+      sealedPin = "";
       typed += num;
       paintDots();
       if (typed.length === NEED) openNote();
     });
   }
-  if (actClose) actClose.addEventListener("click", function () {
-    if (actMask) actMask.hidden = true;
-  });
+  if (actClose) actClose.addEventListener("click", closeNote);
   if (actMask) {
     let down = false;
     actMask.addEventListener("pointerdown", function (ev) { down = ev.target === actMask; });
     actMask.addEventListener("pointerup", function (ev) {
-      if (down && ev.target === actMask && actMask) actMask.hidden = true;
+      if (down && ev.target === actMask) closeNote();
       down = false;
     });
   }
