@@ -31,11 +31,14 @@ test("index.html first mode label is 銀行", () => {
 
 test("index.html has pig product regions", () => {
   const html = read("index.html");
-  for (const id of ["active-pig", "pig-allowance", "claim-apply", "exchange-sheet", "ledger"]) {
+  for (const id of ["active-pig", "claim-bubble", "exchange-sheet", "ledger"]) {
     assert.match(html, new RegExp(`id="${id}"`));
   }
   assert.match(html, /id="ovNum"/);
   assert.match(html, /<button[^>]*id="ovTotal"[^>]*aria-label="消費"/);
+  assert.match(html, /class="[^"]*play-line[^"]*pig-say/);
+  assert.match(html, /id="claim-text"/);
+  assert.doesNotMatch(html, /id="claim-apply"|每晚 7 點發放/);
   assert.doesNotMatch(html, /id="allowClock"|class="allow-clock"/);
   assert.doesNotMatch(html, /class="money-yen"|<span class="money-yen">/);
   assert.doesNotMatch(html, /id="ovKicker"|錢包</);
@@ -51,23 +54,19 @@ test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
   assert.match(html, /id="photo-rail"/);
 });
 
-test("door.js wires 銀行 紀錄 on the shared right menu and spend on the total", () => {
+test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", () => {
   const js = read("door.js");
-  assert.match(js, /rail-bank/);
-  assert.match(js, /rail-ledger/);
+  assert.match(js, /function bindSwipe/);
+  assert.match(js, /pickTab\("ledger"\)/);
+  assert.match(js, /pickTab\("bank"\)/);
+  assert.doesNotMatch(js, /rail-bank/);
+  assert.doesNotMatch(js, /rail-ledger/);
   assert.doesNotMatch(js, /rail-spend/);
-  assert.match(js, /"銀行"/);
-  assert.match(js, /"紀錄"/);
   assert.match(js, /openExchange/);
   assert.match(js, /ovTotal/);
   assert.match(js, /piggybank\.debug/);
   assert.match(js, /\/api\/debug\/feed/);
   assert.match(js, /ins-icon/);
-  const bank = js.match(/insButton\("rail-bank",\s*([^,]+)/);
-  const records = js.match(/insButton\("rail-ledger",\s*([^,]+)/);
-  assert.ok(bank && records, "rail icons missing");
-  assert.equal(bank[1].trim(), "BANK");
-  assert.equal(records[1].trim(), "LEDGER");
   assert.match(js, /"gm"/);
   assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
@@ -139,14 +138,14 @@ test("pages lock double-tap zoom like the other home-web shells", () => {
   assert.match(gate, /dblclick/);
 });
 
-test("hey.html has blobs, invite start, and product name 小金庫", () => {
+test("hey.html has blobs, invite start, and product name 小豬銀行", () => {
   const html = read("hey.html");
   assert.match(html, /class="[^"]*blobs/);
   assert.ok(
     /class="[^"]*invite-go/.test(html) || /class="[^"]*apple-row/.test(html),
     "missing invite-go or apple-row"
   );
-  assert.match(html, /小金庫/);
+  assert.match(html, /小豬銀行/);
 });
 
 test("exchange.html has PIN pad and confirm", () => {
@@ -155,26 +154,25 @@ test("exchange.html has PIN pad and confirm", () => {
   assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
 });
 
-test("door.js drops one 10-yuan placeholder coin after the previous coin is gone", () => {
+test("door.js pops a coin beside the balance and can claim again before the coin finishes", () => {
   const js = read("door.js");
-  assert.match(js, /function playFeedCoins/);
-  assert.match(js, /Math\.floor\(add \/ 10\)/);
-  assert.match(js, /pig-coin is-dropping/);
-  assert.match(js, /dropOne\(i \+ 1\)/);
-  assert.match(js, /countByOnes\(ovNum, 10, FEED_MS/);
-  assert.match(js, /coinDone && countDone/);
+  assert.match(js, /function burstCoin/);
+  assert.match(js, /function claimOnce/);
+  assert.match(js, /money-coin/);
+  assert.match(js, /playCoinSound/);
+  assert.match(js, /claimSerial/);
+  assert.doesNotMatch(js, /pig-coin is-dropping/);
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
 });
 
-test("piggy.css feed coins use the cutout coin artwork", () => {
+test("piggy.css spins the coin sheet beside the balance", () => {
   const css = read("piggy.css");
-  assert.match(css, /\.pig-coin\.is-dropping/);
-  assert.match(css, /@keyframes piggy-feed-in/);
-  const drop = css.match(/\.pig-coin\.is-dropping\s*\{[\s\S]*?\}/);
-  assert.ok(drop, "dropping coin rule missing");
-  assert.match(drop[0], /coin\.png/);
-  assert.doesNotMatch(drop[0], /coin\.jpg/);
-  assert.doesNotMatch(drop[0], /var\(--card\)/);
+  assert.match(css, /\.money-coin/);
+  assert.match(css, /coin-sheet\.png/);
+  assert.match(css, /@keyframes coin-spin/);
+  assert.match(css, /@keyframes coin-rise/);
+  assert.match(css, /\.pig-say \.play-bubble[\s\S]*var\(--rose/);
+  assert.match(css, /\.pig-dot/);
 });
 
 test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
@@ -192,14 +190,17 @@ test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
   }
   assert.match(css, /@keyframes piggy-breathe/);
   assert.match(css, /transform-origin:\s*50% var\(--pig-foot-y\)/);
-  assert.match(css, /\.claim-go\.ins-icon[\s\S]*width:\s*60px/);
+  assert.match(css, /\.money-coin[\s\S]*width:\s*36px/);
   assert.match(css, /\.money-hero[\s\S]*clamp\(45px/);
   assert.doesNotMatch(css, /\.money-yen/);
 });
 
-test("index.html references the user coin artwork", () => {
+test("claim copy uses the speech bubble and coin sheet, not the old claim button", () => {
   const html = read("index.html");
-  assert.match(html, /\.\/icons\/coin\.png/);
+  const js = read("door.js");
+  assert.match(html, /有0筆零用錢可領取/);
+  assert.match(js, /有" \+ waiting\.length \+ "筆零用錢可領取/);
+  assert.doesNotMatch(html, /claim-apply|每晚 7 點發放/);
 });
 
 test("index.html uses the user pig artwork on the piggy stage", () => {

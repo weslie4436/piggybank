@@ -1,4 +1,4 @@
-# 小金庫（GitHub Pages 門面）
+# 小豬銀行（GitHub Pages 門面）
 
 孩子在 iPhone／iPad Safari／桌機開的入口。帳本在家裡保險庫，不上這個庫。
 

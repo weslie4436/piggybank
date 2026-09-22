@@ -1,51 +1,82 @@
 # -*- coding: utf-8 -*-
-"""Original three-color PiggyBank mark. No licensed character art."""
+"""PiggyBank mark: the pig's face plus a small bank word."""
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "web" / "icons"
+PIG = OUT / "pig.png"
+CREAM = (255, 236, 242, 255)
+ROSE = (255, 107, 157, 255)
 
-MELODY = (255, 107, 157)
-KUROMI = (107, 91, 149)
-CINNA = (126, 200, 227)
-CREAM = (255, 245, 247)
-INK = (45, 32, 48)
-SLOT = (74, 48, 64)
+
+def _font(size: int) -> ImageFont.ImageFont:
+    candidates = [
+        Path(r"C:\Windows\Fonts\comic.ttf"),
+        Path(r"C:\Windows\Fonts\Comic.ttf"),
+        Path(r"C:\Windows\Fonts\segoepr.ttf"),
+        Path(r"C:\Windows\Fonts\Gabriola.ttf"),
+        Path(r"C:\Windows\Fonts\seguiemj.ttf"),
+    ]
+    for path in candidates:
+        if path.is_file():
+            return ImageFont.truetype(str(path), size)
+    return ImageFont.load_default()
+
+
+def _face() -> Image.Image:
+    im = Image.open(PIG).convert("RGBA")
+    mask = im.getchannel("A").point(lambda a: 255 if a > 24 else 0)
+    box = mask.getbbox()
+    if box is None:
+        raise RuntimeError("pig artwork has no visible pixels")
+    body = im.crop(box)
+    width, height = body.size
+    head = body.crop((0, 0, width, int(height * 0.72)))
+    head_box = head.getchannel("A").point(lambda a: 255 if a > 24 else 0).getbbox()
+    if head_box is not None:
+        head = head.crop(head_box)
+    return head
 
 
 def make(size: int) -> Image.Image:
     scale = 4
     canvas = size * scale
-    s = canvas / 180.0
-    im = Image.new("RGB", (canvas, canvas), CREAM)
-    d = ImageDraw.Draw(im)
-
-    d.rounded_rectangle(
-        (8 * s, 8 * s, 172 * s, 172 * s),
-        radius=36 * s,
-        fill=CREAM,
+    im = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    radius = int(canvas * 0.22)
+    draw.rounded_rectangle((0, 0, canvas - 1, canvas - 1), radius=radius, fill=CREAM)
+    face = _face()
+    target = int(canvas * 0.8)
+    ratio = target / face.width
+    face = face.resize(
+        (target, max(1, int(face.height * ratio))),
+        Image.Resampling.LANCZOS,
     )
-    d.ellipse((28 * s, 78 * s, 68 * s, 128 * s), fill=KUROMI)
-    d.ellipse((112 * s, 78 * s, 152 * s, 128 * s), fill=CINNA)
-    d.ellipse((34 * s, 44 * s, 146 * s, 150 * s), fill=MELODY)
-    d.ellipse((78 * s, 32 * s, 102 * s, 58 * s), fill=MELODY)
-    d.rounded_rectangle(
-        (70 * s, 38 * s, 110 * s, 50 * s),
-        radius=6 * s,
-        fill=SLOT,
-    )
-    d.ellipse((68 * s, 88 * s, 112 * s, 122 * s), fill=(255, 183, 197))
-    d.ellipse((74 * s, 96 * s, 86 * s, 108 * s), fill=INK)
-    d.ellipse((94 * s, 96 * s, 106 * s, 108 * s), fill=INK)
-    d.arc((76 * s, 102 * s, 104 * s, 126 * s), 20, 160, fill=INK, width=max(2, int(5 * s)))
-    d.ellipse((128 * s, 118 * s, 150 * s, 140 * s), fill=CINNA)
+    fx = (canvas - face.width) // 2
+    fy = int(canvas * 0.02)
+    im.alpha_composite(face, (fx, fy))
+    label = "bank"
+    font = _font(int(canvas * 0.16))
+    text_box = draw.textbbox((0, 0), label, font=font)
+    tw = text_box[2] - text_box[0]
+    th = text_box[3] - text_box[1]
+    pill_w = tw + int(canvas * 0.12)
+    pill_h = th + int(canvas * 0.06)
+    px = (canvas - pill_w) // 2
+    py = canvas - pill_h - int(canvas * 0.07)
+    draw.rounded_rectangle((px, py, px + pill_w, py + pill_h), radius=pill_h // 2, fill=ROSE)
+    tx = px + (pill_w - tw) // 2 - text_box[0]
+    ty = py + (pill_h - th) // 2 - text_box[1]
+    draw.text((tx, ty), label, font=font, fill=(255, 255, 255, 255))
     out = im.resize((size, size), Image.Resampling.LANCZOS)
     if size >= 64:
-        out = out.filter(ImageFilter.UnsharpMask(radius=1.0, percent=90, threshold=2))
-    return out
+        out = out.filter(ImageFilter.UnsharpMask(radius=1.0, percent=80, threshold=2))
+    background = Image.new("RGB", out.size, (255, 236, 242))
+    background.paste(out, mask=out.getchannel("A"))
+    return background
 
 
 def main() -> None:
@@ -54,9 +85,9 @@ def main() -> None:
     make(192).save(OUT / "piggy-192.png", "PNG")
     ico = make(256)
     sizes = [(256, 256), (64, 64), (48, 48), (32, 32), (16, 16)]
-    ico.save(OUT / "piggy-v1.ico", format="ICO", sizes=sizes)
+    ico.save(OUT / "piggy-v2.ico", format="ICO", sizes=sizes)
     print(OUT / "piggy-180.png")
-    print(OUT / "piggy-v1.ico")
+    print(OUT / "piggy-v2.ico")
 
 
 if __name__ == "__main__":

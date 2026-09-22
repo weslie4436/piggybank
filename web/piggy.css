@@ -38,6 +38,7 @@
   padding: 4px 0 24px;
   display: flex;
   flex-direction: column;
+  touch-action: pan-y;
   align-items: center;
 }
 
@@ -75,7 +76,32 @@ button.money-hero {
   gap: 0.12em;
 }
 .money-num {
+  position: relative;
   font-size: 1em;
+}
+.money-coin {
+  position: absolute;
+  right: calc(100% + 6px);
+  bottom: 0.12em;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+  background: url("./icons/coin-sheet.png") 0 0 / 288px 36px no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.18));
+  animation: coin-spin 0.42s steps(8) forwards, coin-rise 0.46s ease-out forwards;
+  z-index: 3;
+}
+@keyframes coin-spin {
+  from { background-position: 0 0; }
+  to { background-position: -288px 0; }
+}
+@keyframes coin-rise {
+  0% { transform: translate(var(--jx, 0px), 0); opacity: 1; }
+  100% { transform: translate(var(--jx, 0px), -42px); opacity: 0; }
+}
+.gate-pad.is-sealed {
+  pointer-events: none;
 }
 .money-withdraw {
   margin: 6px 0 0;
@@ -108,6 +134,55 @@ button.money-hero {
   overflow: visible;
   --pig-foot-y: 88%;
   --pig-coin-y: 22%;
+}
+button.pig-say {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  max-width: 78%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+}
+.pig-say.play-line {
+  display: flex;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.pig-say .play-bubble {
+  position: relative;
+  display: block;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 18px;
+  border-bottom-right-radius: 6px;
+  background: var(--rose, #ff6b9d);
+  color: #fff;
+  word-break: break-word;
+}
+.pig-say .play-bubble p {
+  margin: 0;
+}
+.pig-dot {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 2px #fff;
+}
+.pig-say[hidden] {
+  display: none !important;
 }
 .pig-ground {
   position: absolute;
@@ -424,6 +499,7 @@ button.news-row:active { background: #f6f6f6; }
   .pig-block.is-shattered .pig-art,
   .pig-coin,
   .pig-coin.is-dropping,
+  .money-coin,
   .claim-go.is-ready:not(:disabled) .ins-ring,
   .invite-wait-bar::after {
     animation: none !important;
@@ -443,6 +519,7 @@ html.reduce-motion .pig-block,
 html.reduce-motion .pig-art,
 html.reduce-motion .pig-coin,
 html.reduce-motion .pig-coin.is-dropping,
+html.reduce-motion .money-coin,
 html.reduce-motion .claim-go.is-ready .ins-ring {
   animation: none !important;
   transform: none !important;

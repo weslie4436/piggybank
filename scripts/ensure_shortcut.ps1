@@ -1,7 +1,7 @@
 # Desktop shortcut opens the GitHub Pages door only. Never point at exe or bat.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$Icon = Join-Path $Root "web\icons\piggy-v1.ico"
+$Icon = Join-Path $Root "web\icons\piggy-v2.ico"
 if (-not (Test-Path -LiteralPath $Icon)) {
   throw "icon not found: $Icon"
 }
@@ -14,7 +14,8 @@ if (-not (Test-Path -LiteralPath $Edge)) {
   throw "msedge.exe not found"
 }
 
-$Product = ([char]0x5C0F).ToString() + [char]0x91D1 + [char]0x5EAB
+$Product = ([char]0x5C0F).ToString() + [char]0x8C6C + [char]0x9280 + [char]0x884C
+$OldProduct = ([char]0x5C0F).ToString() + [char]0x91D1 + [char]0x5EAB
 
 function Write-PiggyShortcut([string]$LnkPath) {
   $dir = Split-Path -Parent $LnkPath
@@ -52,7 +53,7 @@ $scan = @(
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
 
 $lnkPaths = New-Object System.Collections.Generic.List[string]
-$nameRe = "PiggyBank|" + [regex]::Escape($Product)
+$nameRe = "PiggyBank|" + [regex]::Escape($Product) + "|" + [regex]::Escape($OldProduct)
 foreach ($root in $scan) {
   Get-ChildItem -LiteralPath $root -Recurse -Force -Filter "*.lnk" -ErrorAction SilentlyContinue |
     Where-Object { $_.BaseName -match $nameRe } |
@@ -64,8 +65,16 @@ if (-not $lnkPaths.Contains($userLnk)) {
   [void]$lnkPaths.Add($userLnk)
 }
 
-foreach ($p in $lnkPaths) {
-  Write-PiggyShortcut $p
+foreach ($p in @($lnkPaths)) {
+  $item = Get-Item -LiteralPath $p -ErrorAction SilentlyContinue
+  $dest = $p
+  if ($item -and $item.BaseName -eq $OldProduct) {
+    $dest = Join-Path $item.DirectoryName ($Product + ".lnk")
+  }
+  Write-PiggyShortcut $dest
+  if ($item -and $dest -ne $p -and (Test-Path -LiteralPath $p)) {
+    Remove-Item -LiteralPath $p -Force
+  }
 }
 
 Write-Host ("PiggyBank.lnk -> Pages; IconLocation rewritten to " + $Icon)
