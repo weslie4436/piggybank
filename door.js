@@ -862,7 +862,7 @@
     if (reduceMotion()) {
       const to = (Number(el.dataset.v || 0) || 0) + n;
       el.dataset.v = String(to);
-      el.textContent = String(to);
+      setMoneyText(el, to);
       paintedTotal = to;
       if (done) done();
       return;
@@ -872,7 +872,7 @@
     el._roll = window.setInterval(function () {
       const cur = (Number(el.dataset.v || 0) || 0) + 1;
       el.dataset.v = String(cur);
-      el.textContent = String(cur);
+      setMoneyText(el, cur);
       paintedTotal = cur;
       playTick();
       left -= 1;
@@ -889,7 +889,7 @@
     stopRoll(el);
     el.dataset.v = String(to);
     if (reduceMotion() || from === to) {
-      el.textContent = String(to);
+      setMoneyText(el, to);
       return;
     }
     let cur = from;
@@ -897,14 +897,14 @@
       const left = to - cur;
       if (left === 0) {
         stopRoll(el);
-        el.textContent = String(to);
+        setMoneyText(el, to);
         return;
       }
       const span = Math.abs(left);
       const step = span > 500 ? Math.ceil(span / 18) : span > 80 ? Math.ceil(span / 12) : span > 24 ? 2 : 1;
       cur += left > 0 ? Math.min(step, left) : -Math.min(step, -left);
-      if (String(cur) !== el.textContent) {
-        el.textContent = String(cur);
+      if (String(cur) !== moneyText(el)) {
+        setMoneyText(el, cur);
         playTick();
       }
     }, 40);
@@ -955,26 +955,53 @@
     } catch (e) {}
   }
 
+  function moneyDigits(el) {
+    if (!el) return null;
+    let digits = el.querySelector(".money-digits");
+    if (digits) return digits;
+    const coins = Array.from(el.children).filter(function (node) {
+      return node.classList && node.classList.contains("money-coin");
+    });
+    const raw = (el.textContent || "").trim();
+    el.textContent = "";
+    digits = document.createElement("span");
+    digits.className = "money-digits";
+    digits.textContent = raw;
+    el.appendChild(digits);
+    coins.forEach(function (coin) { el.appendChild(coin); });
+    return digits;
+  }
+
+  function moneyText(el) {
+    const digits = moneyDigits(el);
+    return digits ? digits.textContent : "";
+  }
+
+  function setMoneyText(el, value) {
+    const digits = moneyDigits(el);
+    if (digits) digits.textContent = String(value);
+  }
+
   function chaseTotal(el) {
     if (!el || el._chase) return;
-    let from = Number(el.textContent) || 0;
+    let from = Number(moneyText(el)) || 0;
     let fromAt = Date.now();
     let goal = Number(el.dataset.v) || 0;
     el._chase = window.setInterval(function () {
       const now = Date.now();
       const target = Number(el.dataset.v) || 0;
       if (target !== goal) {
-        from = Number(el.textContent) || 0;
+        from = Number(moneyText(el)) || 0;
         fromAt = now;
         goal = target;
       }
       const t = Math.min(1, (now - fromAt) / COIN_MS);
       const cur = Math.round(from + (goal - from) * t);
-      if (String(cur) !== el.textContent) {
-        el.textContent = String(cur);
+      if (String(cur) !== moneyText(el)) {
+        setMoneyText(el, cur);
         playTick();
       }
-      if (t >= 1 && Number(el.textContent) === goal) {
+      if (t >= 1 && Number(moneyText(el)) === goal) {
         window.clearInterval(el._chase);
         el._chase = 0;
       }
@@ -986,11 +1013,11 @@
     const ovNum = document.getElementById("ovNum");
     if (!add) return;
     if (ovNum) {
-      const base = Number(ovNum.dataset.v || ovNum.textContent || 0) || 0;
+      const base = Number(ovNum.dataset.v || moneyText(ovNum) || 0) || 0;
       const next = base + add;
       ovNum.dataset.v = String(next);
       paintedTotal = next;
-      if (reduceMotion()) ovNum.textContent = String(next);
+      if (reduceMotion()) setMoneyText(ovNum, next);
       else chaseTotal(ovNum);
     }
     playCoinSound();
@@ -999,7 +1026,16 @@
     const coin = document.createElement("span");
     coin.className = "money-coin";
     coin.style.setProperty("--jx", ((moneyHold % 5) - 2) * 8 + "px");
-    ovNum.appendChild(coin);
+    const host = document.getElementById("pig-overview") || ovNum;
+    host.appendChild(coin);
+    if (host !== ovNum) {
+      const hb = host.getBoundingClientRect();
+      const nb = ovNum.getBoundingClientRect();
+      coin.style.left = Math.round(nb.left - hb.left - 42) + "px";
+      coin.style.top = Math.round(nb.bottom - hb.top - 40) + "px";
+      coin.style.right = "auto";
+      coin.style.bottom = "auto";
+    }
     let finished = false;
     function done() {
       if (finished) return;
@@ -1042,7 +1078,7 @@
     if (ovNum) {
       if (animate) rollNumber(ovNum, total);
       else {
-        ovNum.textContent = String(total);
+        setMoneyText(ovNum, total);
         ovNum.dataset.v = String(total);
       }
     }
