@@ -51,10 +51,6 @@
   var token = fromUrl || (KEY_RE.test(stored) ? stored : "") || (KEY_RE.test(cookie) ? cookie : "");
   window.PIGGY_URL_KEY = fromUrl;
   window.PIGGY_VIEW_KEY = token;
-  var debugFlag = new URLSearchParams(location.search).get("debug");
-  if (debugFlag && debugFlag !== "0" && debugFlag !== "false") {
-    try { sessionStorage.setItem("piggybank.debug", "1"); } catch (e) {}
-  }
   if (token) {
     try { localStorage.setItem(viewKey, token); } catch (e) {}
     if (typeof navigator.standalone === "boolean" && !navigator.standalone) {
@@ -208,6 +204,6 @@
   <button type="button" class="invite-go" id="home-installed">我已加入</button>
 </div>
 <script src="./gate.js?v=4"></script>
-<script src="./door.js?v=34"></script>
+<script src="./door.js?v=35"></script>
 </body>
 </html>

@@ -64,17 +64,16 @@ test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", ()
   assert.doesNotMatch(js, /rail-spend/);
   assert.match(js, /openExchange/);
   assert.match(js, /ovTotal/);
-  assert.match(js, /piggybank\.debug/);
   assert.match(js, /ins-icon/);
   assert.match(js, /"gm"/);
   assert.match(js, /GM功能/);
-  assert.match(js, /切換測試/);
   assert.match(js, /發放零用錢/);
   assert.match(js, /零用錢設定/);
   assert.match(js, /伺服器維修 請聯絡家長/);
   assert.doesNotMatch(js, /零用金|家裡還沒開/);
   assert.doesNotMatch(js, /rail-feed/);
   assert.doesNotMatch(js, /給十天零用錢/);
+  assert.doesNotMatch(js, /切換測試/);
   assert.doesNotMatch(js, /\/api\/debug\/feed/);
 });
 
@@ -101,11 +100,11 @@ test("GM功能 has 發放零用錢 and alignment guides, not the ten-day debug f
   const js = read("door.js");
   assert.match(js, /function openGmCard/);
   assert.match(js, /function openGrantCard/);
-  assert.match(js, /addSwitch\(body, "切換測試"/);
   assert.match(js, /addSwitch\(body, "對位線"/);
   assert.match(js, /addSwitch\(body, "特別獎金"/);
   assert.match(js, /openAllowanceCard/);
   assert.match(js, /\/api\/grant/);
+  assert.doesNotMatch(js, /切換測試/);
   assert.doesNotMatch(js, /debugFeed/);
   assert.doesNotMatch(js, /gm-feed/);
   assert.doesNotMatch(js, /insButton\("rail-feed"/);
