@@ -168,6 +168,7 @@ test("door.js pops a coin beside the balance and can claim again before the coin
   assert.match(js, /money-coin/);
   assert.match(js, /playCoinSound/);
   assert.match(js, /claimSerial/);
+  assert.doesNotMatch(js, /harvestPig|\/api\/harvest/);
   assert.doesNotMatch(js, /pig-coin is-dropping/);
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
 });
