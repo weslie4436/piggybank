@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://fastest-linked-spirits-circuits.trycloudflare.com";
+window.VAULT_ORIGIN = "https://simple-turtle-proceed-arabia.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
