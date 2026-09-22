@@ -267,6 +267,7 @@
     const pct = document.getElementById("waitPct");
     if (head) head.textContent = title || "更換背景中";
     if (pct) pct.textContent = "0%";
+    if (mask && mask.parentNode) mask.parentNode.appendChild(mask);
     if (mask) mask.hidden = false;
   }
 
@@ -1541,6 +1542,8 @@
   async function reserveNow(err) {
     if (busy) return;
     busy = true;
+    startWaitCardPct();
+    showWaitCard("產生 QR 中");
     try {
       const x = await api("/api/exchange/reserve", {
         method: "POST",
@@ -1569,6 +1572,7 @@
       exStage = "qr";
       paintQr(x.j);
     } finally {
+      hideWaitCard();
       busy = false;
     }
   }
