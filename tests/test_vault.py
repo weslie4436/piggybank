@@ -543,6 +543,77 @@ class TestRequestHardening(VaultHttpTestCase):
                 self.assertEqual(400, status)
                 self.assertEqual("validation_error", payload["error"])
 
+    def test_cover_and_backdrop_round_trip_to_other_readers(self):
+        from io import BytesIO
+        from urllib.parse import quote
+
+        from PIL import Image
+
+        def jpeg(color: tuple[int, int, int], size: tuple[int, int]) -> bytes:
+            buf = BytesIO()
+            Image.new("RGB", size, color).save(buf, "JPEG")
+            return buf.getvalue()
+
+        def multipart(name: str, blob: bytes) -> tuple[bytes, str]:
+            boundary = "----piggyboundary"
+            raw = (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="{name}"; filename="{name}.jpg"\r\n'
+                "Content-Type: image/jpeg\r\n\r\n"
+            ).encode() + blob + f"\r\n--{boundary}--\r\n".encode()
+            return raw, f"multipart/form-data; boundary={boundary}"
+
+        missing, _, missing_body = self.request(
+            "GET",
+            "/cover?k=" + quote(self.personal),
+        )
+        self.assertEqual(404, missing)
+        self.assertIn(b"not_found", missing_body)
+
+        cover_body, cover_type = multipart("cover", jpeg((20, 40, 80), (40, 60)))
+        status, _, saved = self.json_request(
+            "POST",
+            "/api/cover?k=" + quote(self.personal),
+            cover_body,
+            {"Content-Type": cover_type},
+        )
+        self.assertEqual(200, status)
+        self.assertTrue(saved["has_cover"])
+        self.assertGreater(saved["cover_rev"], 0)
+
+        status, headers, raw = self.request(
+            "GET",
+            "/cover?k=" + quote(self.personal) + "&r=" + str(saved["cover_rev"]),
+        )
+        self.assertEqual(200, status)
+        self.assertTrue(headers["content-type"].startswith("image/jpeg"))
+        self.assertTrue(raw.startswith(b"\xff\xd8"))
+
+        backdrop_body, backdrop_type = multipart("backdrop", jpeg((8, 8, 8), (80, 40)))
+        status, _, backdrop = self.json_request(
+            "POST",
+            "/api/backdrop?k=" + quote(self.personal),
+            backdrop_body,
+            {"Content-Type": backdrop_type},
+        )
+        self.assertEqual(200, status)
+        self.assertTrue(backdrop["has_backdrop"])
+
+        door_status, _, door = self.json_request(
+            "GET",
+            "/api/door?k=" + quote(self.personal),
+        )
+        self.assertEqual(200, door_status)
+        self.assertTrue(door["reader"]["has_cover"])
+        self.assertTrue(door["reader"]["has_backdrop"])
+        state_status, _, state = self.json_request(
+            "GET",
+            "/api/state?k=" + quote(self.personal),
+        )
+        self.assertEqual(200, state_status)
+        self.assertEqual(door["reader"]["cover_rev"], state["cover_rev"])
+        self.assertEqual(door["reader"]["backdrop_rev"], state["backdrop_rev"])
+
     def test_unknown_api_endpoint_is_not_found(self):
         status, _, payload = self.json_request("GET", "/api/unknown")
         self.assertEqual(404, status)

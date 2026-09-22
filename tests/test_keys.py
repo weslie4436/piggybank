@@ -58,6 +58,10 @@ class TestVaultKeys(unittest.TestCase):
                 "id": "child1",
                 "display_name": "小明",
                 "theme": "melody",
+                "has_cover": False,
+                "cover_rev": 0,
+                "has_backdrop": False,
+                "backdrop_rev": 0,
             },
             result["reader"],
         )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 
 from piggybank.auth import new_token, token_hash
+from piggybank.portraits import meta
 from piggybank.service import DomainError
 from piggybank.store import Store
 
@@ -13,12 +14,12 @@ class VaultKeys:
     def __init__(self, store: Store) -> None:
         self.store = store
 
-    @staticmethod
-    def _reader(settings: dict[str, str]) -> dict:
+    def _reader(self, settings: dict[str, str]) -> dict:
         return {
             "id": "child1",
             "display_name": settings["display_name"],
             "theme": settings.get("theme", "melody"),
+            **meta(self.store.db_path.parent),
         }
 
     def create_invite(self) -> str:

@@ -59,14 +59,19 @@ def make(size: int) -> Image.Image:
     fy = int(canvas * 0.02)
     im.alpha_composite(face, (fx, fy))
     label = "bank"
-    font = _font(int(canvas * 0.16))
+    pill_w = int(canvas * 0.85)
+    font = _font(int(canvas * 0.2))
     text_box = draw.textbbox((0, 0), label, font=font)
     tw = text_box[2] - text_box[0]
     th = text_box[3] - text_box[1]
-    pill_w = tw + int(canvas * 0.12)
-    pill_h = th + int(canvas * 0.06)
+    while tw > pill_w - int(canvas * 0.08) and font.size > 8:
+        font = _font(font.size - 2)
+        text_box = draw.textbbox((0, 0), label, font=font)
+        tw = text_box[2] - text_box[0]
+        th = text_box[3] - text_box[1]
+    pill_h = th + int(canvas * 0.07)
     px = (canvas - pill_w) // 2
-    py = canvas - pill_h - int(canvas * 0.07)
+    py = canvas - pill_h - int(canvas * 0.045)
     draw.rounded_rectangle((px, py, px + pill_w, py + pill_h), radius=pill_h // 2, fill=ROSE)
     tx = px + (pill_w - tw) // 2 - text_box[0]
     ty = py + (pill_h - th) // 2 - text_box[1]
@@ -85,9 +90,9 @@ def main() -> None:
     make(192).save(OUT / "piggy-192.png", "PNG")
     ico = make(256)
     sizes = [(256, 256), (64, 64), (48, 48), (32, 32), (16, 16)]
-    ico.save(OUT / "piggy-v2.ico", format="ICO", sizes=sizes)
+    ico.save(OUT / "piggy-v3.ico", format="ICO", sizes=sizes)
     print(OUT / "piggy-180.png")
-    print(OUT / "piggy-v2.ico")
+    print(OUT / "piggy-v3.ico")
 
 
 if __name__ == "__main__":

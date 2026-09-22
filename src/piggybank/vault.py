@@ -5,18 +5,22 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime
+from email import policy as email_policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from piggybank.keys import VaultKeys
 from piggybank.paths import DATA
+from piggybank.portraits import backdrop_file, cover_file
 from piggybank.qr import qr_svg
 from piggybank.schedule import TAIPEI
 from piggybank.service import DomainError, PiggyService
 from piggybank.store import Store
 
 _MAX_BODY = 64 * 1024
+_MAX_IMAGE = 8 * 1024 * 1024
 _LOCAL_ORIGIN = re.compile(r"^http://(?:127\.0\.0\.1|localhost):([0-9]+)$")
 _STATIC_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -185,6 +189,71 @@ def make_server(
                 )
             return payload
 
+        def _read_image(self) -> bytes:
+            raw_length = self.headers.get("Content-Length", "0")
+            try:
+                length = int(raw_length)
+            except ValueError as error:
+                raise ValueError("image body is required") from error
+            if length <= 0:
+                raise ValueError("image body is required")
+            if length > _MAX_IMAGE:
+                self.close_connection = True
+                raise _HttpError(
+                    413,
+                    "body_too_large",
+                    "照片超過 8 MB",
+                )
+            raw = self.rfile.read(length)
+            ctype = self.headers.get("Content-Type") or ""
+            if "multipart/" not in ctype.lower():
+                return raw
+            header = (
+                f"Content-Type: {ctype}\r\nMIME-Version: 1.0\r\n\r\n"
+            ).encode("utf-8")
+            message = BytesParser(policy=email_policy.default).parsebytes(
+                header + raw
+            )
+            for part in message.iter_parts():
+                payload = part.get_payload(decode=True) or b""
+                if payload:
+                    return payload
+            raise ValueError("image body is required")
+
+        def _serve_portrait(self, kind: str) -> None:
+            cors_origin = None
+            try:
+                cors_origin = self._cors_origin()
+                self._require_personal()
+                root = store.db_path.parent
+                path = (
+                    cover_file(root)
+                    if kind == "cover"
+                    else backdrop_file(root)
+                )
+                if path is None:
+                    raise _HttpError(404, "not_found", "還沒有這張照片")
+                self._send_bytes(
+                    200,
+                    path.read_bytes(),
+                    "image/jpeg",
+                    cors_origin,
+                )
+            except _HttpError as error:
+                self._send_error_json(
+                    error.status,
+                    error.code,
+                    str(error),
+                    cors_origin,
+                )
+            except (TypeError, ValueError) as error:
+                self._send_error_json(
+                    400,
+                    "validation_error",
+                    str(error),
+                    cors_origin,
+                )
+
         @staticmethod
         def _field(payload: dict, name: str):
             if name not in payload:
@@ -313,6 +382,12 @@ def make_server(
             raise _HttpError(404, "not_found", "找不到這個 API")
 
         def _dispatch_post(self, path: str):
+            if path == "/api/cover":
+                self._require_personal()
+                return service.save_cover(self._read_image())
+            if path == "/api/backdrop":
+                self._require_personal()
+                return service.save_backdrop(self._read_image())
             if path == "/api/join":
                 try:
                     invite = self._query("k")
@@ -559,7 +634,14 @@ def make_server(
             self.end_headers()
 
         def do_GET(self) -> None:
-            if self._path().startswith("/api/"):
+            path = self._path()
+            if path == "/cover":
+                self._serve_portrait("cover")
+                return
+            if path == "/backdrop":
+                self._serve_portrait("backdrop")
+                return
+            if path.startswith("/api/"):
                 self._handle_api()
             else:
                 self._serve_static()

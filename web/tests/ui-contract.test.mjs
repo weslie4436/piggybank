@@ -215,7 +215,10 @@ test("piggy.css defines three Sanrio-inspired theme palettes", () => {
   assert.match(css, /html\[data-theme="kuromi"\]/);
   assert.match(css, /html\[data-theme="cinnamoroll"\]/);
   assert.match(css, /--rose:\s*#ff6b9d/i);
-  assert.match(css, /--rose:\s*#6b5b95/i);
+  assert.match(css, /--rose:\s*#7c3aed/i);
+  assert.match(css, /--money:\s*#ffffff/i);
+  assert.match(css, /#pig-home \{[\s\S]*?overflow:\s*hidden/);
+  assert.match(css, /#ledger[\s\S]*user-select:\s*none/);
   assert.match(css, /--rose:\s*#7ec8e3/i);
 });
 

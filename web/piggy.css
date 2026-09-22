@@ -33,13 +33,18 @@
 }
 
 #pig-home {
+  position: relative;
+  z-index: 2;
   width: min(720px, calc(100% - 32px));
+  max-width: 100%;
+  min-width: 0;
   margin: 0 auto 48px;
   padding: 4px 0 24px;
   display: flex;
   flex-direction: column;
   touch-action: pan-y;
   align-items: center;
+  overflow: hidden;
 }
 
 .piggy-overview {
@@ -134,7 +139,8 @@ button.money-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  overflow: hidden;
+  overflow: visible;
+  padding-top: 8px;
 }
 .pig-page[data-page="ledger"] {
   overflow: auto;
@@ -176,7 +182,7 @@ button.money-hero {
 }
 button.pig-say {
   position: absolute;
-  z-index: 4;
+  z-index: 8;
   top: 0;
   left: 0;
   max-width: 78%;
@@ -214,6 +220,7 @@ button.pig-say {
   position: absolute;
   top: -5px;
   right: -5px;
+  z-index: 2;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -377,6 +384,12 @@ button.pig-say {
   margin: 18px auto 48px;
   background: transparent;
 }
+#ledger,
+#ledger * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 button.news-row {
   display: block;
   width: 100%;
@@ -387,6 +400,10 @@ button.news-row {
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink);
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
 }
 button.news-row:active { background: #f6f6f6; }
@@ -587,25 +604,37 @@ html[data-theme="melody"] {
 }
 
 html[data-theme="kuromi"] {
-  --bg: #f6f2f8;
-  --void: #f6f2f8;
-  --card: #ffffff;
-  --ink: #2d2d2d;
-  --mute: #6b5b95;
-  --line: #d9d0e6;
-  --rose: #6b5b95;
-  --accent: #6b5b95;
-  --accent-press: #4b3d72;
-  --rose-soft: #ff8cc8;
+  --bg: #100e14;
+  --void: #100e14;
+  --card: #1c1724;
+  --ink: #f4f1f8;
+  --mute: #b7a8c9;
+  --line: #3a3148;
+  --rose: #7c3aed;
+  --accent: #7c3aed;
+  --accent-press: #5b21b6;
+  --rose-soft: #f4f4f6;
   --on-accent: #fff;
-  --tile-void: #efe8f6;
-  --pick-veil: rgba(107, 91, 149, 0.28);
-  --ring-1: #2d2d2d;
-  --ring-2: #6b5b95;
-  --ring-3: #ff8cc8;
-  --ring-4: #c9b6e4;
-  --ring-5: #4b3d72;
-  --money: #ee8ad0;
+  --tile-void: #241c30;
+  --pick-veil: rgba(124, 58, 237, 0.35);
+  --ring-1: #0a0a0a;
+  --ring-2: #f7f7f8;
+  --ring-3: #7c3aed;
+  --ring-4: #1a1a1a;
+  --ring-5: #c4b5fd;
+  --money: #ffffff;
+}
+html[data-theme="kuromi"] .batch-tag-sheet,
+html[data-theme="kuromi"] .ask-card,
+html[data-theme="kuromi"] .settings-menu,
+html[data-theme="kuromi"] button.news-row,
+html[data-theme="kuromi"] .home-install {
+  --ink: #161018;
+  --mute: #6d6278;
+  color: #161018;
+}
+html[data-theme="kuromi"] .hall.has-backdrop .reader-name.is-on-light {
+  color: #161018;
 }
 
 html[data-theme="cinnamoroll"] {
@@ -673,9 +702,9 @@ button.theme-pick[data-theme="melody"] {
   box-shadow: inset 0 0 0 1px #f3cdd6;
 }
 button.theme-pick[data-theme="kuromi"] {
-  background: #f6f2f8;
-  color: #2d2d2d;
-  box-shadow: inset 0 0 0 1px #d9d0e6;
+  background: #100e14;
+  color: #f4f1f8;
+  box-shadow: inset 0 0 0 1px #7c3aed;
 }
 button.theme-pick[data-theme="cinnamoroll"] {
   background: #f0f8ff;

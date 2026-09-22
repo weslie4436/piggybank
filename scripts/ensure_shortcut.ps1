@@ -1,7 +1,7 @@
 # Desktop shortcut opens the GitHub Pages door only. Never point at exe or bat.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-$Icon = Join-Path $Root "web\icons\piggy-v2.ico"
+$Icon = Join-Path $Root "web\icons\piggy-v3.ico"
 if (-not (Test-Path -LiteralPath $Icon)) {
   throw "icon not found: $Icon"
 }

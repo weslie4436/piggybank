@@ -761,6 +761,9 @@
     const allowed = { melody: 1, kuromi: 1, cinnamoroll: 1 };
     const id = allowed[theme] ? theme : "melody";
     document.documentElement.setAttribute("data-theme", id);
+    const bar = document.querySelector('meta[name="theme-color"]');
+    const colors = { melody: "#ff6b9d", kuromi: "#100e14", cinnamoroll: "#7ec8e3" };
+    if (bar) bar.setAttribute("content", colors[id]);
   }
 
   function pickTheme(theme) {
@@ -768,14 +771,74 @@
     return allowed[theme] ? theme : "";
   }
 
+  function portraitUrl(kind, rev) {
+    return window.FamiGate.origin() + "/" + kind + "?k=" + encodeURIComponent(key) + "&r=" + (rev || 0);
+  }
+
+  function paintCover(reader) {
+    if (!faceImg) return;
+    const next = reader && reader.has_cover
+      ? portraitUrl("cover", reader.cover_rev)
+      : "./face-default.jpg?v=2";
+    if (faceImg.getAttribute("src") !== next) faceImg.src = next;
+    faceImg.hidden = false;
+  }
+
+  function tuneNameOnBackdrop(url) {
+    if (!readerName || !stageBg || stageBg.hidden || !url) return;
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function () {
+      if (stageBg.style.backgroundImage.indexOf(url) < 0) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = 24;
+      canvas.height = 12;
+      const ctx = canvas.getContext("2d");
+      if (!ctx || !img.naturalWidth) return;
+      try {
+        ctx.drawImage(img, 0, 0, 24, 12);
+        const data = ctx.getImageData(0, 0, 24, 12).data;
+        let sum = 0;
+        const n = data.length / 4;
+        for (let i = 0; i < data.length; i += 4) {
+          sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+        }
+        const light = n > 0 && (sum / n) >= 0.65;
+        readerName.classList.toggle("is-on-light", light);
+        readerName.classList.toggle("is-on-dark", !light);
+      } catch (err) {
+        readerName.classList.add("is-on-dark");
+      }
+    };
+    img.src = url;
+  }
+
+  function paintStage(reader) {
+    if (!stageBg || !hall) return;
+    if (reader && reader.has_backdrop) {
+      const url = portraitUrl("backdrop", reader.backdrop_rev);
+      hall.classList.add("has-backdrop");
+      stageBg.style.backgroundImage = "url(\"" + url + "\")";
+      stageBg.hidden = false;
+      if (readerName) readerName.classList.add("is-on-dark");
+      requestAnimationFrame(function () {
+        layoutStage();
+        tuneNameOnBackdrop(url);
+      });
+      return;
+    }
+    hall.classList.remove("has-backdrop");
+    if (readerName) readerName.classList.remove("is-on-light", "is-on-dark");
+    stageBg.hidden = true;
+    stageBg.style.backgroundImage = "";
+  }
+
   function renderMe(reader) {
     if (!reader || !cabHud) return;
     if (readerName) readerName.textContent = reader.display_name || "";
     applyTheme(pickTheme(rememberedTheme()) || reader.theme);
-    if (faceImg) {
-      faceImg.src = "./face-default.jpg?v=1";
-      faceImg.hidden = false;
-    }
+    paintCover(reader);
+    paintStage(reader);
     cabHud.hidden = false;
     if (homeHead) homeHead.hidden = false;
     ensureSettings();
@@ -1107,6 +1170,9 @@
         el.classList.toggle("is-on", i === on);
       });
     }
+    host.addEventListener("selectstart", function (ev) {
+      ev.preventDefault();
+    });
     host.addEventListener("pointerdown", function (ev) {
       if (!ready) return;
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
@@ -1128,6 +1194,7 @@
         host.classList.add("is-dragging");
         try { host.setPointerCapture(ev.pointerId); } catch (e) {}
       }
+      if (drag.lock === "x") ev.preventDefault();
       const width = host.clientWidth || 1;
       let x = drag.base + dx;
       if (x > 0) x *= 0.34;
@@ -1273,6 +1340,8 @@
     const prev = snapshot && snapshot.revision;
     snapshot = x.j;
     applyTheme(pickTheme(rememberedTheme()) || snapshot.theme);
+    paintCover(snapshot);
+    paintStage(snapshot);
     const added = Number(snapshot.total || 0) - paintedTotal;
     const animate = shouldAnimate(snapshot.revision) && feeding;
     const feedUp = !!(feeding && animate && added > 0);
@@ -1677,15 +1746,54 @@
     if (homeInstall) homeInstall.hidden = true;
   });
 
-  if (coverInput) coverInput.addEventListener("change", function () {
+  function postFile(url, body, onPct) {
+    return new Promise(function (resolve, reject) {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", url);
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(xhr);
+        else reject(new Error("fail"));
+      };
+      xhr.onerror = function () { reject(new Error("net")); };
+      if (xhr.upload) {
+        xhr.upload.onprogress = function (ev) {
+          if (ev.lengthComputable && ev.total) onPct(Math.round((ev.loaded / ev.total) * 100));
+        };
+      }
+      xhr.send(body);
+    });
+  }
+
+  if (coverInput) coverInput.addEventListener("change", async function () {
     const file = coverInput.files && coverInput.files[0];
     closeAct();
     if (!file || !faceImg) return;
-    faceImg.src = URL.createObjectURL(file);
-    coverInput.value = "";
+    const entry = document.querySelector('.settings-entry[data-job="cover"]');
+    setJobRun(entry, true);
+    setCabRun(true);
+    try {
+      const fd = new FormData();
+      fd.append("cover", file);
+      const saved = await window.FamiGate.api("/api/cover", key, {
+        method: "POST",
+        body: fd,
+        timeout: 20000,
+      });
+      if (saved.res && saved.res.ok && saved.j) {
+        paintCover(saved.j);
+        if (snapshot) {
+          snapshot.cover_rev = saved.j.cover_rev;
+          snapshot.has_cover = saved.j.has_cover;
+        }
+      }
+    } finally {
+      setJobRun(entry, false);
+      setCabRun(false);
+      coverInput.value = "";
+    }
   });
 
-  if (backdropInput) backdropInput.addEventListener("change", function () {
+  if (backdropInput) backdropInput.addEventListener("change", async function () {
     const file = backdropInput.files && backdropInput.files[0];
     closeAct();
     if (!file || !stageBg || waitBusy) {
@@ -1699,13 +1807,22 @@
     setJobRun(entry, true);
     setCabRun(true);
     try {
-      const url = URL.createObjectURL(file);
-      hall.classList.add("has-backdrop");
-      stageBg.style.backgroundImage = "url(" + url + ")";
-      stageBg.hidden = false;
-      if (readerName) readerName.classList.add("is-on-dark");
-      requestAnimationFrame(layoutStage);
+      const fd = new FormData();
+      fd.append("backdrop", file);
+      await postFile(
+        window.FamiGate.origin() + "/api/backdrop?k=" + encodeURIComponent(key),
+        fd,
+        function (n) {
+          if (waitTimer) {
+            window.clearInterval(waitTimer);
+            waitTimer = 0;
+          }
+          setWaitPct(n);
+        }
+      );
       setWaitPct(100);
+      const door = await window.FamiGate.api("/api/door", key, { timeout: 15000 });
+      if (door.j && door.j.reader) paintStage(door.j.reader);
     } finally {
       hideWaitCard();
       setJobRun(entry, false);
@@ -1753,5 +1870,8 @@
   if (askOk) askOk.addEventListener("click", closeAsk);
 
   window.addEventListener("resize", layoutStage);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && ready && !busy) loadState(false);
+  });
   boot();
 })();

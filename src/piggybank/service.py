@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
+from piggybank.portraits import meta, save_backdrop_image, save_cover_image
 from piggybank.schedule import TAIPEI, due_at, eligible_periods, next_allowance_at
 from piggybank.store import Store
 
@@ -330,6 +331,30 @@ class PiggyService:
             )
         if deferred_error is not None:
             raise deferred_error
+
+    def _save_portrait(self, kind: str, blob: bytes) -> dict:
+        root = self.store.db_path.parent
+        if kind == "cover":
+            dest = save_cover_image(root, blob)
+            rev_key = "cover_rev"
+        elif kind == "backdrop":
+            dest = save_backdrop_image(root, blob)
+            rev_key = "backdrop_rev"
+        else:
+            raise ValueError("invalid portrait")
+        with self.store.transaction() as conn:
+            revision = Store.bump_revision(conn)
+        return {
+            "revision": revision,
+            rev_key: int(dest.stat().st_mtime),
+            **meta(root),
+        }
+
+    def save_cover(self, blob: bytes) -> dict:
+        return self._save_portrait("cover", blob)
+
+    def save_backdrop(self, blob: bytes) -> dict:
+        return self._save_portrait("backdrop", blob)
 
     def set_theme(self, theme: str, pin: str, now: datetime) -> dict:
         self._require_aware(now)
@@ -1121,6 +1146,7 @@ class PiggyService:
             current = now.astimezone(TAIPEI)
             return {
                 "revision": revision,
+                **meta(self.store.db_path.parent),
                 "theme": (
                     theme_row["value"]
                     if theme_row is not None
