@@ -94,16 +94,19 @@ button.money-hero {
   background: url("./icons/coin-sheet.png") 0 0 / 288px 36px no-repeat;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.18));
-  animation: coin-spin 0.42s steps(8) forwards, coin-rise 0.46s ease-out forwards;
+  animation: coin-spin 0.92s steps(7) forwards, coin-rise 0.92s linear forwards;
   z-index: 3;
 }
 @keyframes coin-spin {
   from { background-position: 0 0; }
-  to { background-position: -288px 0; }
+  to { background-position: -252px 0; }
 }
 @keyframes coin-rise {
-  0% { transform: translate(var(--jx, 0px), 0); opacity: 1; }
-  100% { transform: translate(var(--jx, 0px), -42px); opacity: 0; }
+  0% { transform: translate(var(--jx, 0px), 6px); opacity: 1; }
+  16% { transform: translate(var(--jx, 0px), -48px); opacity: 1; }
+  48% { transform: translate(var(--jx, 0px), -96px); opacity: 1; }
+  78% { transform: translate(var(--jx, 0px), -128px); opacity: 1; }
+  100% { transform: translate(var(--jx, 0px), -148px); opacity: 0; }
 }
 .gate-pad.is-sealed {
   pointer-events: none;
@@ -604,37 +607,25 @@ html[data-theme="melody"] {
 }
 
 html[data-theme="kuromi"] {
-  --bg: #100e14;
-  --void: #100e14;
-  --card: #1c1724;
-  --ink: #f4f1f8;
-  --mute: #b7a8c9;
-  --line: #3a3148;
-  --rose: #7c3aed;
-  --accent: #7c3aed;
-  --accent-press: #5b21b6;
-  --rose-soft: #f4f4f6;
+  --bg: #f8f3fc;
+  --void: #f8f3fc;
+  --card: #ffffff;
+  --ink: #5c4570;
+  --mute: #9a86aa;
+  --line: #eadcf4;
+  --rose: #b57edc;
+  --accent: #b57edc;
+  --accent-press: #9b64c4;
+  --rose-soft: #eddcf6;
   --on-accent: #fff;
-  --tile-void: #241c30;
-  --pick-veil: rgba(124, 58, 237, 0.35);
-  --ring-1: #0a0a0a;
-  --ring-2: #f7f7f8;
-  --ring-3: #7c3aed;
-  --ring-4: #1a1a1a;
-  --ring-5: #c4b5fd;
-  --money: #ffffff;
-}
-html[data-theme="kuromi"] .batch-tag-sheet,
-html[data-theme="kuromi"] .ask-card,
-html[data-theme="kuromi"] .settings-menu,
-html[data-theme="kuromi"] button.news-row,
-html[data-theme="kuromi"] .home-install {
-  --ink: #161018;
-  --mute: #6d6278;
-  color: #161018;
-}
-html[data-theme="kuromi"] .hall.has-backdrop .reader-name.is-on-light {
-  color: #161018;
+  --tile-void: #f6eefb;
+  --pick-veil: rgba(181, 126, 220, 0.32);
+  --ring-1: #f8f3fc;
+  --ring-2: #eddcf6;
+  --ring-3: #ddb8ef;
+  --ring-4: #b57edc;
+  --ring-5: #9b64c4;
+  --money: #8d4fb0;
 }
 
 html[data-theme="cinnamoroll"] {
@@ -702,9 +693,9 @@ button.theme-pick[data-theme="melody"] {
   box-shadow: inset 0 0 0 1px #f3cdd6;
 }
 button.theme-pick[data-theme="kuromi"] {
-  background: #100e14;
-  color: #f4f1f8;
-  box-shadow: inset 0 0 0 1px #7c3aed;
+  background: #f8f3fc;
+  color: #5c4570;
+  box-shadow: inset 0 0 0 1px #eadcf4;
 }
 button.theme-pick[data-theme="cinnamoroll"] {
   background: #f0f8ff;
