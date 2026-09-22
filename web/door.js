@@ -72,7 +72,7 @@
   let tickNode = null;
 
   function yen(n) {
-    return String(Math.max(0, Math.round(Number(n) || 0))) + " 元";
+    return String(Math.abs(Math.round(Number(n) || 0))) + " 元";
   }
 
   function reduceMotion() {
@@ -1292,7 +1292,7 @@
         title.textContent = row.note || row.kind || "紀錄";
       const meta = document.createElement("span");
       const when = String(row.created_at || "").replace("T", " ").slice(0, 16);
-      meta.textContent = (row.amount >= 0 ? "+" : "") + yen(row.amount) + "  ·  " + when;
+      meta.textContent = (row.amount < 0 ? "-" : "+") + yen(row.amount) + "  ·  " + when;
       btn.appendChild(title);
       btn.appendChild(meta);
       ledger.appendChild(btn);
