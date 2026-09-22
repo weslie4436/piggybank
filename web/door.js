@@ -61,7 +61,7 @@
   let ignoreClick = false;
   const pendingClaim = Object.create(null);
   const COIN_MS = 460;
-  const COIN_JUMP_MS = 2500;
+  const COIN_JUMP_MS = 900;
   let allowTimer = 0;
   let allowServerNow = 0;
   let allowOrigin = 0;
