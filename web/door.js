@@ -1025,33 +1025,19 @@
     moneyHold += 1;
     const coin = document.createElement("span");
     coin.className = "money-coin";
+    const face = document.createElement("span");
+    face.className = "money-coin-face";
+    coin.appendChild(face);
     coin.style.setProperty("--jx", ((moneyHold % 5) - 2) * 8 + "px");
-    const host = document.getElementById("pig-overview") || ovNum;
-    host.appendChild(coin);
-    if (host !== ovNum) {
-      const hb = host.getBoundingClientRect();
-      const nb = ovNum.getBoundingClientRect();
-      coin.style.left = Math.round(nb.left - hb.left - 42) + "px";
-      coin.style.top = Math.round(nb.bottom - hb.top - 40) + "px";
-      coin.style.right = "auto";
-      coin.style.bottom = "auto";
-    }
-    let finished = false;
-    function done() {
-      if (finished) return;
-      finished = true;
-      coin.removeEventListener("animationend", onEnd);
+    const nb = ovNum.getBoundingClientRect();
+    coin.style.left = Math.round(nb.left - 42) + "px";
+    coin.style.top = Math.round(nb.top) + "px";
+    document.body.appendChild(coin);
+    window.setTimeout(function () {
       if (coin.parentNode) coin.remove();
       moneyHold = Math.max(0, moneyHold - 1);
       if (moneyHold === 0 && claimInflight === 0) paintOverview(false);
-    }
-    function onEnd(ev) {
-      if (ev.target !== coin) return;
-      if (ev.animationName && ev.animationName !== "coin-rise") return;
-      done();
-    }
-    coin.addEventListener("animationend", onEnd);
-    window.setTimeout(done, COIN_JUMP_MS + 40);
+    }, COIN_JUMP_MS);
   }
 
   function setPigState(name, on) {
