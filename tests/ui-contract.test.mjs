@@ -65,16 +65,17 @@ test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", ()
   assert.match(js, /openExchange/);
   assert.match(js, /ovTotal/);
   assert.match(js, /piggybank\.debug/);
-  assert.match(js, /\/api\/debug\/feed/);
   assert.match(js, /ins-icon/);
   assert.match(js, /"gm"/);
   assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
-  assert.match(js, /給十天零用錢/);
+  assert.match(js, /發放零用錢/);
   assert.match(js, /零用錢設定/);
   assert.match(js, /伺服器維修 請聯絡家長/);
   assert.doesNotMatch(js, /零用金|家裡還沒開/);
   assert.doesNotMatch(js, /rail-feed/);
+  assert.doesNotMatch(js, /給十天零用錢/);
+  assert.doesNotMatch(js, /\/api\/debug\/feed/);
 });
 
 test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs", () => {
@@ -96,14 +97,17 @@ test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs",
   assert.doesNotMatch(ex, /家裡還沒開/);
 });
 
-test("debug 給十天零用錢 lives in GM功能, not the right rail", () => {
+test("GM功能 has 發放零用錢 and alignment guides, not the ten-day debug feed", () => {
   const js = read("door.js");
   assert.match(js, /function openGmCard/);
-  assert.match(js, /className = "tag-apply gm-feed"/);
+  assert.match(js, /function openGrantCard/);
   assert.match(js, /addSwitch\(body, "切換測試"/);
   assert.match(js, /addSwitch\(body, "對位線"/);
+  assert.match(js, /addSwitch\(body, "特別獎金"/);
   assert.match(js, /openAllowanceCard/);
-  assert.match(js, /debugFeed/);
+  assert.match(js, /\/api\/grant/);
+  assert.doesNotMatch(js, /debugFeed/);
+  assert.doesNotMatch(js, /gm-feed/);
   assert.doesNotMatch(js, /insButton\("rail-feed"/);
 });
 
@@ -180,6 +184,7 @@ test("piggy.css spins the coin sheet beside the balance", () => {
   assert.match(css, /@keyframes coin-spin/);
   assert.match(css, /@keyframes coin-rise/);
   assert.match(css, /\.pig-say \.play-bubble[\s\S]*var\(--rose/);
+  assert.match(css, /\.pig-say\.is-bonus \.play-bubble::before/);
   assert.match(css, /\.pig-dot/);
 });
 
@@ -208,6 +213,8 @@ test("claim copy uses the speech bubble and coin sheet, not the old claim button
   const js = read("door.js");
   assert.match(html, /有0筆零用錢可領取/);
   assert.match(js, /有" \+ waiting\.length \+ "筆零用錢可領取/);
+  assert.match(js, /你有" \+ first\.amount \+ "元獎金/);
+  assert.match(js, /classList\.toggle\("is-bonus"/);
   assert.doesNotMatch(html, /claim-apply|每晚 7 點發放/);
 });
 
@@ -223,8 +230,8 @@ test("piggy.css defines three Sanrio-inspired theme palettes", () => {
   assert.match(css, /html\[data-theme="kuromi"\]/);
   assert.match(css, /html\[data-theme="cinnamoroll"\]/);
   assert.match(css, /--rose:\s*#ff6b9d/i);
-  assert.match(css, /--rose:\s*#7c3aed/i);
-  assert.match(css, /--money:\s*#ffffff/i);
+  assert.match(css, /--rose:\s*#b57edc/i);
+  assert.match(css, /--money:\s*#ff7eae/i);
   assert.match(css, /#pig-home \{[\s\S]*?overflow:\s*hidden/);
   assert.match(css, /#ledger[\s\S]*user-select:\s*none/);
   assert.match(css, /--rose:\s*#7ec8e3/i);
@@ -238,6 +245,9 @@ test("door.js rolls held money in stepped ticks and stores pig guide lines", () 
   assert.match(js, /function applyGuides/);
   assert.match(js, /\["foot", "腳點"\]/);
   assert.match(js, /\["coin", "投幣點"\]/);
+  assert.match(js, /\/api\/settings\/guides/);
+  assert.doesNotMatch(js, /piggybank\.guides"/);
+  assert.doesNotMatch(js, /piggybank\.theme/);
 });
 
 test("pages link apple-touch-icon and default melody theme", () => {

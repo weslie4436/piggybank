@@ -226,6 +226,45 @@ button.pig-say {
 .pig-say .play-bubble p {
   margin: 0;
 }
+.pig-say.is-bonus .play-bubble {
+  isolation: isolate;
+  overflow: hidden;
+  padding: var(--apply-ring);
+  background-color: var(--rose, #ff6b9d);
+  background-image: var(--ring-conic-210);
+}
+.pig-say.is-bonus .play-bubble::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 50%;
+  width: 200vw;
+  height: 200vw;
+  border-radius: 0;
+  background: var(--ring-conic-0);
+  animation: tag-apply-spin 2.4s linear infinite;
+  pointer-events: none;
+}
+.pig-say.is-bonus .play-bubble::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: var(--apply-ring);
+  border-radius: 14px;
+  border-bottom-right-radius: 4px;
+  background: var(--rose, #ff6b9d);
+  pointer-events: none;
+}
+.pig-say.is-bonus .play-bubble p {
+  position: relative;
+  z-index: 2;
+  display: block;
+  padding: 10px 14px;
+}
+.pig-say.is-bonus .pig-dot {
+  display: none;
+}
 .pig-dot {
   position: absolute;
   top: -5px;
@@ -568,7 +607,8 @@ button.news-row:active { background: #f6f6f6; }
   .money-coin,
   .money-coin-face,
   .claim-go.is-ready:not(:disabled) .ins-ring,
-  .invite-wait-bar::after {
+  .invite-wait-bar::after,
+  .pig-say.is-bonus .play-bubble::before {
     animation: none !important;
     transform: none !important;
   }
@@ -588,7 +628,8 @@ html.reduce-motion .pig-coin,
 html.reduce-motion .pig-coin.is-dropping,
 html.reduce-motion .money-coin,
 html.reduce-motion .money-coin-face,
-html.reduce-motion .claim-go.is-ready .ins-ring {
+html.reduce-motion .claim-go.is-ready .ins-ring,
+html.reduce-motion .pig-say.is-bonus .play-bubble::before {
   animation: none !important;
   transform: none !important;
 }
