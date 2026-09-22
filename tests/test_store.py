@@ -19,6 +19,7 @@ EXPECTED_TABLES = (
     "exchanges",
     "pin_attempts",
     "children",
+    "grants",
 )
 
 EXPECTED_INDEXES = (

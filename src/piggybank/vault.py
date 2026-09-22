@@ -289,6 +289,20 @@ def make_server(
             return value
 
         @classmethod
+        def _bool_field(cls, payload: dict, name: str) -> bool:
+            value = cls._field(payload, name)
+            if not isinstance(value, bool):
+                raise ValueError(f"{name} must be a boolean")
+            return value
+
+        @classmethod
+        def _number_field(cls, payload: dict, name: str) -> float:
+            value = cls._field(payload, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a number")
+            return float(value)
+
+        @classmethod
         def _string_list_field(
             cls,
             payload: dict,
@@ -449,14 +463,30 @@ def make_server(
 
             if path == "/api/claim":
                 payload = self._read_json()
+                now = datetime.now(TAIPEI)
+                if payload.get("grant_id"):
+                    return self._account().claim_grant(
+                        self._string_field(payload, "grant_id"),
+                        now,
+                    )
                 return self._account().claim(
                     self._string_field(payload, "period_key"),
-                    datetime.now(TAIPEI),
+                    now,
                 )
-            if path == "/api/debug/feed":
+            if path == "/api/grant":
                 account = self._account()
-                self._read_json()
-                return account.debug_feed(datetime.now(TAIPEI))
+                payload = self._read_json()
+                now = datetime.now(TAIPEI)
+                account.authorize_parent(
+                    self._string_field(payload, "pin"),
+                    now,
+                )
+                return account.grant_allowance(
+                    self._integer_field(payload, "amount"),
+                    self._string_field(payload, "note"),
+                    self._bool_field(payload, "is_bonus"),
+                    now,
+                )
             if path == "/api/exchange/preview":
                 payload = self._read_json()
                 return self._account().preview_exchange(
@@ -530,6 +560,17 @@ def make_server(
                     self._string_field(payload, "theme"),
                     self._string_field(payload, "pin"),
                     datetime.now(TAIPEI),
+                )
+            if path == "/api/settings/guides":
+                account = self._account()
+                payload = self._read_json()
+                account.authorize_parent(
+                    self._string_field(payload, "pin"),
+                    datetime.now(TAIPEI),
+                )
+                return account.set_guides(
+                    self._number_field(payload, "foot"),
+                    self._number_field(payload, "coin"),
                 )
             raise _HttpError(404, "not_found", "找不到這個 API")
 

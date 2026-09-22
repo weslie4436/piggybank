@@ -294,14 +294,6 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         self.assertEqual(200, status)
         self.assertEqual(600, claimed["amount"])
 
-        status, _, debug_fed = self.json_request(
-            "POST",
-            f"/api/debug/feed?k={key}",
-            {},
-        )
-        self.assertEqual(200, status)
-        self.assertEqual(10, debug_fed["queued_days"])
-
         pigs = self.rows(
             "SELECT * FROM pigs WHERE status='growing' ORDER BY created_at, id"
         )
@@ -346,7 +338,11 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             ("GET", "/api/state", None),
             ("GET", "/api/ledger", None),
             ("POST", "/api/claim", {"period_key": "2026-01-01"}),
-            ("POST", "/api/debug/feed", {}),
+            (
+                "POST",
+                "/api/grant",
+                {"pin": "123456", "amount": 10, "note": "", "is_bonus": False},
+            ),
             (
                 "POST",
                 "/api/exchange/preview",
@@ -377,6 +373,11 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
                 "PUT",
                 "/api/settings/theme",
                 {"pin": "123456", "theme": "melody"},
+            ),
+            (
+                "PUT",
+                "/api/settings/guides",
+                {"pin": "123456", "foot": 80, "coin": 20},
             ),
         )
 
@@ -426,19 +427,29 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         self.assertEqual(40, settings["allowance_rule"]["amount"])
         self.assertNotIn("hash", json.dumps(settings))
 
-        status, _, queued = self.json_request(
+        status, _, granted = self.json_request(
             "POST",
-            f"/api/debug/feed?k={key}",
-            {},
+            f"/api/grant?k={key}",
+            {
+                "pin": "123456",
+                "amount": 50,
+                "note": "加菜",
+                "is_bonus": True,
+            },
         )
         self.assertEqual(200, status)
-        self.assertEqual(10, queued["queued_days"])
+        self.assertEqual(50, granted["amount"])
+        self.assertTrue(granted["is_bonus"])
         status, _, ledger = self.json_request(
             "GET",
             f"/api/ledger?k={key}&limit=1",
         )
         self.assertEqual(200, status)
         self.assertEqual([], ledger)
+        status, _, state = self.json_request("GET", f"/api/state?k={key}")
+        self.assertEqual(200, status)
+        self.assertEqual("加菜", state["pending_grants"][0]["note"])
+        self.assertTrue(state["pending_grants"][0]["is_bonus"])
 
 
 class TestQrAndParentExchange(VaultHttpTestCase):

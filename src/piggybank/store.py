@@ -36,6 +36,16 @@ SCHEMA_STATEMENTS = (
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS grants (
+      id TEXT PRIMARY KEY,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      note TEXT NOT NULL DEFAULT '',
+      is_bonus INTEGER NOT NULL DEFAULT 0 CHECK(is_bonus IN (0, 1)),
+      created_at TEXT NOT NULL,
+      claimed_at TEXT
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS pigs (
       id TEXT PRIMARY KEY,
       tier_id TEXT NOT NULL,

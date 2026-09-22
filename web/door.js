@@ -31,8 +31,7 @@
   const CROWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.6 16.6h16.8L18.4 8.1 14.4 12.1 12 5.2 9.6 12.1 5.6 8.1 3.6 16.6z"/><path fill="currentColor" d="M5 18.5h14v1.9H5z"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
-  const THEME_KEY = "piggybank.theme";
-  const GUIDE_KEY = "piggybank.guides";
+  const GUIDE_SHOW_KEY = "piggybank.guides.show";
   const THEMES = [
     ["melody", "Melody"],
     ["kuromi", "Kuromi"],
@@ -110,28 +109,41 @@
     if (row) row.classList.toggle("is-host", isDebug());
   }
 
-  function rememberedTheme() {
-    try { return localStorage.getItem(THEME_KEY) || ""; } catch (e) { return ""; }
+  function loadGuideShow() {
+    try { guides.show = sessionStorage.getItem(GUIDE_SHOW_KEY) === "1"; } catch (e) {}
   }
 
-  function rememberTheme(theme) {
-    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
-  }
-
-  function loadGuides() {
+  function setGuideShow(on) {
+    guides.show = !!on;
     try {
-      const raw = JSON.parse(localStorage.getItem(GUIDE_KEY) || "null");
-      if (!raw || typeof raw !== "object") return;
-      const foot = Number(raw.foot);
-      const coin = Number(raw.coin);
-      if (Number.isFinite(foot)) guides.foot = Math.min(96, Math.max(4, foot));
-      if (Number.isFinite(coin)) guides.coin = Math.min(96, Math.max(4, coin));
-      guides.show = !!raw.show;
+      if (on) sessionStorage.setItem(GUIDE_SHOW_KEY, "1");
+      else sessionStorage.removeItem(GUIDE_SHOW_KEY);
     } catch (e) {}
+    applyGuides();
   }
 
   function saveGuides() {
-    try { localStorage.setItem(GUIDE_KEY, JSON.stringify(guides)); } catch (e) {}
+    if (!parentPin) return;
+    api("/api/settings/guides", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pin: parentPin,
+        foot: guides.foot,
+        coin: guides.coin,
+      }),
+      timeout: 8000,
+    }).catch(function () {});
+  }
+
+  function applyPigGuidesFromState(state) {
+    const raw = state && state.pig_guides;
+    if (!raw || typeof raw !== "object") return;
+    const foot = Number(raw.foot);
+    const coin = Number(raw.coin);
+    if (Number.isFinite(foot)) guides.foot = clampGuide(foot);
+    if (Number.isFinite(coin)) guides.coin = clampGuide(coin);
+    applyGuides();
   }
 
   function clampGuide(n) {
@@ -644,6 +656,10 @@
   }
 
   function openThemeCard() {
+    if (!parentPin) {
+      openParentGate(function () { openThemeCard(); });
+      return;
+    }
     openAct("主題選擇", function (body) {
       const picks = document.createElement("div");
       picks.className = "theme-picks";
@@ -655,15 +671,103 @@
         btn.dataset.theme = pair[0];
         btn.textContent = pair[1];
         btn.addEventListener("click", function () {
-          applyTheme(pair[0]);
-          rememberTheme(pair[0]);
-          picks.querySelectorAll(".theme-pick").forEach(function (el) {
-            el.classList.toggle("is-on", el === btn);
-          });
+          if (busy) return;
+          busy = true;
+          api("/api/settings/theme", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin: parentPin, theme: pair[0] }),
+            timeout: 15000,
+          }).then(function (x) {
+            if (!x.res || !x.res.ok) {
+              const message = (x.j && x.j.message) || "請再試一次";
+              if (message.indexOf("密碼") >= 0) {
+                parentPin = "";
+                openParentGate(function () { openThemeCard(); });
+              }
+              return;
+            }
+            applyTheme(pair[0]);
+            picks.querySelectorAll(".theme-pick").forEach(function (el) {
+              el.classList.toggle("is-on", el === btn);
+            });
+            return loadState(false);
+          }).finally(function () { busy = false; });
         });
         picks.appendChild(btn);
       });
       body.appendChild(picks);
+    });
+  }
+
+  function openGrantCard() {
+    if (!parentPin) {
+      openParentGate(function () { openGrantCard(); });
+      return;
+    }
+    openAct("發放零用錢", function (body) {
+      const err = document.createElement("p");
+      err.className = "err";
+      const amount = document.createElement("input");
+      amount.inputMode = "numeric";
+      const note = document.createElement("textarea");
+      note.rows = 3;
+      let bonus = false;
+      body.appendChild(err);
+      body.appendChild(fieldRow("金額", amount));
+      body.appendChild(fieldRow("備註", note));
+      addSwitch(body, "特別獎金", false, function (on) { bonus = on; });
+      const go = document.createElement("button");
+      go.type = "button";
+      go.className = "tag-apply";
+      go.innerHTML = '<span class="tag-apply-face">確認</span>';
+      go.addEventListener("click", async function () {
+        if (busy) return;
+        const n = Number(amount.value);
+        if (!n || n < 1 || n !== Math.round(n)) {
+          err.textContent = "請填金額";
+          return;
+        }
+        const text = (note.value || "").trim();
+        if (text.length > 80) {
+          err.textContent = "備註太長";
+          return;
+        }
+        busy = true;
+        startWaitCardPct();
+        showWaitCard("發放零用錢");
+        try {
+          const x = await api("/api/grant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              pin: parentPin,
+              amount: n,
+              note: text,
+              is_bonus: bonus,
+            }),
+            timeout: 15000,
+          });
+          if (!x.res || !x.res.ok) {
+            const message = (x.j && x.j.message) || "請再試一次";
+            hideWaitCard();
+            if (message.indexOf("密碼") >= 0) {
+              parentPin = "";
+              openParentGate(function () { openGrantCard(); });
+              return;
+            }
+            err.textContent = message;
+            return;
+          }
+          closeAct();
+          pickTab("bank");
+          await loadState(false);
+        } finally {
+          hideWaitCard();
+          busy = false;
+        }
+      });
+      body.appendChild(go);
     });
   }
 
@@ -677,27 +781,21 @@
       allow.appendChild(allowTitle);
       allow.addEventListener("click", function () { openAllowanceCard(); });
       body.appendChild(allow);
+      const grant = document.createElement("button");
+      grant.type = "button";
+      grant.className = "news-row";
+      const grantTitle = document.createElement("strong");
+      grantTitle.textContent = "發放零用錢";
+      grant.appendChild(grantTitle);
+      grant.addEventListener("click", function () { openGrantCard(); });
+      body.appendChild(grant);
       addSwitch(body, "切換測試", isDebug(), function (on) {
         setDebug(on);
-        const feedBtn = body.querySelector(".gm-feed");
-        if (feedBtn) feedBtn.hidden = !on;
       });
       addSwitch(body, "對位線", guides.show, function (on) {
-        guides.show = on;
-        saveGuides();
-        applyGuides();
+        setGuideShow(on);
         if (on) closeAct();
       });
-      const feed = document.createElement("button");
-      feed.type = "button";
-      feed.className = "tag-apply gm-feed";
-      feed.hidden = !isDebug();
-      feed.innerHTML = '<span class="tag-apply-face">給十天零用錢</span>';
-      feed.addEventListener("click", function () {
-        closeAct();
-        debugFeed();
-      });
-      body.appendChild(feed);
     });
   }
 
@@ -768,11 +866,6 @@
     if (bar) bar.setAttribute("content", colors[id]);
   }
 
-  function pickTheme(theme) {
-    const allowed = { melody: 1, kuromi: 1, cinnamoroll: 1 };
-    return allowed[theme] ? theme : "";
-  }
-
   function portraitUrl(kind, rev) {
     return window.FamiGate.origin() + "/" + kind + "?k=" + encodeURIComponent(key) + "&r=" + (rev || 0);
   }
@@ -838,7 +931,7 @@
   function renderMe(reader) {
     if (!reader || !cabHud) return;
     if (readerName) readerName.textContent = reader.display_name || "";
-    applyTheme(pickTheme(rememberedTheme()) || reader.theme);
+    applyTheme(reader.theme);
     paintCover(reader);
     paintStage(reader);
     cabHud.hidden = false;
@@ -1098,20 +1191,38 @@
     allowTimer = window.setInterval(tick, 1000);
   }
 
-  function openClaims() {
-    return ((snapshot && snapshot.claimable_periods) || []).filter(function (item) {
-      return item && !pendingClaim[item.period_key];
+  function claimQueue() {
+    const grants = ((snapshot && snapshot.pending_grants) || []).filter(function (item) {
+      return item && item.id && !pendingClaim["g:" + item.id];
     });
+    const bonuses = grants.filter(function (item) { return item.is_bonus; });
+    const regular = grants.filter(function (item) { return !item.is_bonus; });
+    const periods = ((snapshot && snapshot.claimable_periods) || []).filter(function (item) {
+      return item && item.period_key && !pendingClaim[item.period_key];
+    });
+    return bonuses.concat(regular).concat(periods);
   }
 
   function paintClaim() {
-    const waiting = openClaims();
+    const waiting = claimQueue();
+    const first = waiting[0];
+    const bonus = !!(first && first.is_bonus);
     const text = document.getElementById("claim-text");
     if (claimBubble) {
       claimBubble.hidden = waiting.length <= 0;
-      claimBubble.setAttribute("aria-label", "有" + waiting.length + "筆零用錢可領取");
+      claimBubble.classList.toggle("is-bonus", bonus);
+      claimBubble.setAttribute(
+        "aria-label",
+        bonus
+          ? "你有" + first.amount + "元獎金"
+          : "有" + waiting.length + "筆零用錢可領取"
+      );
     }
-    if (text) text.textContent = "有" + waiting.length + "筆零用錢可領取";
+    if (text) {
+      text.textContent = bonus
+        ? "你有" + first.amount + "元獎金"
+        : "有" + waiting.length + "筆零用錢可領取";
+    }
     if (waiting.length) stopAllowClock();
     else startAllowClock(snapshot && snapshot.now, snapshot && snapshot.next_allowance_at);
   }
@@ -1120,24 +1231,28 @@
     if (!ready) return;
     const sheet = document.getElementById("exchange-sheet");
     if (sheet && !sheet.hidden) return;
-    const next = openClaims()[0];
+    const next = claimQueue()[0];
     if (!next) return;
-    pendingClaim[next.period_key] = 1;
+    const pendingKey = next.id ? "g:" + next.id : next.period_key;
+    pendingClaim[pendingKey] = 1;
     claimInflight += 1;
     paintClaim();
     burstCoin(next.amount);
+    const body = next.id
+      ? { grant_id: next.id }
+      : { period_key: next.period_key };
     claimSerial = claimSerial.then(function () {
       return api("/api/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ period_key: next.period_key }),
+        body: JSON.stringify(body),
         timeout: 15000,
       }).then(function (x) {
-        if (!x.res || !x.res.ok) delete pendingClaim[next.period_key];
+        if (!x.res || !x.res.ok) delete pendingClaim[pendingKey];
         return loadState(false);
       }).finally(function () {
         claimInflight = Math.max(0, claimInflight - 1);
-        delete pendingClaim[next.period_key];
+        delete pendingClaim[pendingKey];
         paintClaim();
         if (claimInflight === 0 && moneyHold === 0) paintOverview(false);
       });
@@ -1234,27 +1349,6 @@
     });
   }
 
-  async function debugFeed() {
-    if (busy || !isDebug()) return;
-    busy = true;
-    setCabRun(true);
-    try {
-      const x = await api("/api/debug/feed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-        timeout: 15000,
-      });
-      if (x.res && x.res.ok) {
-        pickTab("bank");
-        await loadState(false);
-      }
-    } finally {
-      setCabRun(false);
-      busy = false;
-    }
-  }
-
   function paintLedger(rows) {
     if (!ledger) return;
     ledger.innerHTML = "";
@@ -1344,7 +1438,8 @@
     if (!x.res || !x.res.ok || !x.j) return;
     const prev = snapshot && snapshot.revision;
     snapshot = x.j;
-    applyTheme(pickTheme(rememberedTheme()) || snapshot.theme);
+    applyTheme(snapshot.theme);
+    applyPigGuidesFromState(snapshot);
     paintCover(snapshot);
     paintStage(snapshot);
     const added = Number(snapshot.total || 0) - paintedTotal;
@@ -1616,7 +1711,7 @@
       window.FamiGate.blockWebChrome();
       window.FamiGate.bindKeyboard();
     }
-    loadGuides();
+    loadGuideShow();
     applyGuides();
     if (window.PIGGY_FORCE_INVITE) key = window.PIGGY_URL_KEY || "";
     else key = window.PIGGY_VIEW_KEY || (window.FamiGate && window.FamiGate.currentKey()) || "";

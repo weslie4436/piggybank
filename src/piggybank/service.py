@@ -11,7 +11,6 @@ from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
 from piggybank.portraits import meta, save_backdrop_image, save_cover_image
 from piggybank.schedule import (
     TAIPEI,
-    due_at,
     eligible_periods,
     next_allowance_at,
     starter_effective_date,
@@ -19,6 +18,17 @@ from piggybank.schedule import (
 from piggybank.store import Store
 
 DEFAULT_ALLOWANCE_AMOUNT = 30
+DEFAULT_GUIDE_FOOT = 88.0
+DEFAULT_GUIDE_COIN = 22.0
+
+
+def _clamp_guide(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError("guide must be a number")
+    number = float(value)
+    if number != number:  # NaN
+        raise ValueError("guide must be a number")
+    return min(96.0, max(4.0, number))
 
 
 class DomainError(Exception):
@@ -1078,6 +1088,10 @@ class PiggyService:
             return int(cursor.lastrowid)
 
     def state(self, now: datetime) -> dict:
+        self.store.initialize()
+        if not self._same_ledger():
+            self.household.initialize()
+        guides = self._pig_guides()
         self.accrue(now)
         public_pig_fields = (
             "id",
@@ -1131,6 +1145,7 @@ class PiggyService:
             ).fetchone()
             nxt = next_allowance_at(rules, claimed_keys, now)
             current = now.astimezone(TAIPEI)
+            pending_grants = self._pending_grants(conn)
             return {
                 "revision": revision,
                 **meta(self.portrait_root, self.child_id),
@@ -1152,14 +1167,205 @@ class PiggyService:
                     claimed_keys,
                     now,
                 ),
+                "pending_grants": pending_grants,
+                "pig_guides": guides,
             }
         finally:
             conn.close()
 
-    def claim(self, requested_period_key: str, now: datetime) -> dict:
+    @staticmethod
+    def _pending_grants(conn) -> list[dict]:
+        return [
+            {
+                "id": row["id"],
+                "amount": int(row["amount"]),
+                "note": row["note"],
+                "is_bonus": bool(row["is_bonus"]),
+            }
+            for row in conn.execute(
+                """
+                SELECT id, amount, note, is_bonus
+                FROM grants
+                WHERE claimed_at IS NULL
+                ORDER BY created_at, id
+                """
+            )
+        ]
+
+    def _pig_guides(self) -> dict:
+        conn = self.household._connect()
+        try:
+            rows = {
+                row["key"]: row["value"]
+                for row in conn.execute(
+                    """
+                    SELECT key, value FROM settings
+                    WHERE key IN ('pig_guide_foot', 'pig_guide_coin')
+                    """
+                )
+            }
+        finally:
+            conn.close()
+        foot = rows.get("pig_guide_foot")
+        coin = rows.get("pig_guide_coin")
+        return {
+            "foot": (
+                _clamp_guide(float(foot))
+                if foot is not None
+                else DEFAULT_GUIDE_FOOT
+            ),
+            "coin": (
+                _clamp_guide(float(coin))
+                if coin is not None
+                else DEFAULT_GUIDE_COIN
+            ),
+        }
+
+    def set_guides(self, foot: object, coin: object) -> dict:
+        self.household.initialize()
+        clamped_foot = _clamp_guide(foot)
+        clamped_coin = _clamp_guide(coin)
+        with self.household.transaction() as conn:
+            for key, value in (
+                ("pig_guide_foot", clamped_foot),
+                ("pig_guide_coin", clamped_coin),
+            ):
+                conn.execute(
+                    """
+                    INSERT INTO settings (key, value)
+                    VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                    """,
+                    (key, format(value, ".4g")),
+                )
+            Store.bump_revision(conn)
+        return {
+            "foot": clamped_foot,
+            "coin": clamped_coin,
+        }
+
+    def grant_allowance(
+        self,
+        amount: int,
+        note: str,
+        is_bonus: bool,
+        now: datetime,
+    ) -> dict:
         self._require_aware(now)
+        self.store.initialize()
+        if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:
+            raise ValueError("amount must be a positive integer")
+        if not isinstance(is_bonus, bool):
+            raise ValueError("is_bonus must be a boolean")
+        if not isinstance(note, str):
+            raise ValueError("note must be a string")
+        text = note.strip()
+        if len(text) > 80:
+            raise ValueError("note must be at most 80 characters")
+        timestamp = now.astimezone(TAIPEI).isoformat()
+        grant_id = uuid4().hex
+        with self.store.transaction() as conn:
+            conn.execute(
+                """
+                INSERT INTO grants (
+                  id, amount, note, is_bonus, created_at, claimed_at
+                )
+                VALUES (?, ?, ?, ?, ?, NULL)
+                """,
+                (grant_id, amount, text, 1 if is_bonus else 0, timestamp),
+            )
+            revision = Store.bump_revision(conn)
+        return {
+            "id": grant_id,
+            "amount": amount,
+            "note": text,
+            "is_bonus": is_bonus,
+            "revision": revision,
+        }
+
+    def claim_grant(self, grant_id: str, now: datetime) -> dict:
+        self._require_aware(now)
+        self.store.initialize()
+        if not isinstance(grant_id, str) or not grant_id:
+            raise ValueError("grant_id is required")
         timestamp = now.astimezone(TAIPEI).isoformat()
         with self.store.transaction() as conn:
+            pending = self._pending_grants(conn)
+            bonuses = [item for item in pending if item["is_bonus"]]
+            selected = next(
+                (item for item in pending if item["id"] == grant_id),
+                None,
+            )
+            if selected is None:
+                raise DomainError("not_claimable", "這一筆不能領取")
+            if bonuses and selected["id"] != bonuses[0]["id"]:
+                raise DomainError("bonus_waiting", "請先領取獎金")
+            updated = conn.execute(
+                """
+                UPDATE grants
+                SET claimed_at=?
+                WHERE id=? AND claimed_at IS NULL
+                """,
+                (timestamp, grant_id),
+            )
+            if updated.rowcount != 1:
+                raise DomainError("not_claimable", "這一筆不能領取")
+            self._feed_in_transaction(conn, selected["amount"], timestamp)
+            balance = conn.execute(
+                """
+                SELECT COALESCE(SUM(value), 0) AS total
+                FROM pigs
+                WHERE status IN ('growing','full','reserved')
+                """
+            ).fetchone()["total"]
+            revision = Store.bump_revision(conn)
+            note = selected["note"] or (
+                "特別獎金" if selected["is_bonus"] else "零用錢"
+            )
+            kind = "bonus_claim" if selected["is_bonus"] else "allowance_claim"
+            conn.execute(
+                """
+                INSERT INTO ledger (
+                  id, kind, amount, balance_after, note,
+                  metadata, created_at, revision
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uuid4().hex,
+                    kind,
+                    selected["amount"],
+                    balance,
+                    note,
+                    json.dumps(
+                        {
+                            "grant_id": selected["id"],
+                            "is_bonus": selected["is_bonus"],
+                        },
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                    timestamp,
+                    revision,
+                ),
+            )
+            return {
+                "revision": revision,
+                "grant_id": selected["id"],
+                "amount": selected["amount"],
+                "is_bonus": selected["is_bonus"],
+            }
+
+    def claim(self, requested_period_key: str, now: datetime) -> dict:
+        self._require_aware(now)
+        self.store.initialize()
+        timestamp = now.astimezone(TAIPEI).isoformat()
+        with self.store.transaction() as conn:
+            bonuses = [
+                item for item in self._pending_grants(conn) if item["is_bonus"]
+            ]
+            if bonuses:
+                raise DomainError("bonus_waiting", "請先領取獎金")
             rules = [
                 dict(row)
                 for row in conn.execute(
@@ -1246,56 +1452,4 @@ class PiggyService:
                 "period_key": selected["period_key"],
                 "amount": selected["amount"],
                 "claim_kind": selected["claim_kind"],
-            }
-
-    def debug_feed(self, now: datetime, days: int = 10) -> dict:
-        """Queue unclaimed daily allowances. Money moves only through claim()."""
-        self._require_aware(now)
-        if isinstance(days, bool) or not isinstance(days, int) or days < 1:
-            raise ValueError("days must be positive")
-        current = now.astimezone(TAIPEI)
-        timestamp = current.isoformat()
-        with self.store.transaction() as conn:
-            earliest = conn.execute(
-                """
-                SELECT effective_date FROM allowance_rules
-                ORDER BY effective_date, id
-                LIMIT 1
-                """
-            ).fetchone()
-            latest = conn.execute(
-                """
-                SELECT amount FROM allowance_rules
-                ORDER BY effective_date DESC, id DESC
-                LIMIT 1
-                """
-            ).fetchone()
-            amount = (
-                int(latest["amount"])
-                if latest is not None
-                else DEFAULT_ALLOWANCE_AMOUNT
-            )
-            if earliest is None:
-                end = current.date()
-                if due_at(end) > current:
-                    end = end - timedelta(days=1)
-                start = end - timedelta(days=days - 1)
-            else:
-                end = date.fromisoformat(str(earliest["effective_date"]))
-                start = end - timedelta(days=days)
-            conn.execute(
-                """
-                INSERT INTO allowance_rules (
-                  amount, period, weekday, monthday, effective_date, created_at
-                )
-                VALUES (?, 'daily', NULL, NULL, ?, ?)
-                """,
-                (amount, start.isoformat(), timestamp),
-            )
-            revision = Store.bump_revision(conn)
-            return {
-                "revision": revision,
-                "queued_days": days,
-                "amount": amount,
-                "effective_date": start.isoformat(),
             }

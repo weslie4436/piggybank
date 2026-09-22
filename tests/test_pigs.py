@@ -400,42 +400,84 @@ class TestWarehouseAndState(PiggyServiceTestCase):
         )
 
 
-class TestDebugFeed(PiggyServiceTestCase):
-    def test_debug_feed_queues_ten_unclaimed_days_for_the_normal_claim(self):
+class TestGrantAndGuides(PiggyServiceTestCase):
+    def test_grant_queues_money_until_claimed_and_keeps_the_note(self):
         self.service.initialize(self.now)
-        before = self.service.state(self.now)
-        self.assertEqual(0, before["total"])
-
-        result = self.service.debug_feed(self.now)
+        granted = self.service.grant_allowance(80, "考試滿分", False, self.now)
         after = self.service.state(self.now)
 
-        self.assertEqual(10, result["queued_days"])
-        self.assertEqual(30, result["amount"])
-        self.assertEqual(
-            len(before["claimable_periods"]) + 10,
-            len(after["claimable_periods"]),
-        )
         self.assertEqual(0, after["total"])
+        self.assertEqual(
+            [
+                {
+                    "id": granted["id"],
+                    "amount": 80,
+                    "note": "考試滿分",
+                    "is_bonus": False,
+                }
+            ],
+            after["pending_grants"],
+        )
         self.assertEqual([], self.rows("SELECT kind FROM ledger"))
-        first = after["claimable_periods"][0]
-        claimed = self.service.claim(first["period_key"], self.now)
-        self.assertEqual(first["amount"], claimed["amount"])
-        self.assertEqual(first["amount"], self.service.state(self.now)["total"])
 
-    def test_debug_feed_can_queue_another_ten_days(self):
-        self.service.initialize(self.now)
-        self.service.debug_feed(self.now)
-        midway = self.service.state(self.now)
-
-        result = self.service.debug_feed(self.now)
-        after = self.service.state(self.now)
-
-        self.assertEqual(10, result["queued_days"])
+        claimed = self.service.claim_grant(granted["id"], self.now)
+        state = self.service.state(self.now)
+        self.assertEqual(80, claimed["amount"])
+        self.assertFalse(claimed["is_bonus"])
+        self.assertEqual(80, state["total"])
+        self.assertEqual([], state["pending_grants"])
         self.assertEqual(
-            len(midway["claimable_periods"]) + 10,
-            len(after["claimable_periods"]),
+            [("allowance_claim", 80, "考試滿分")],
+            [
+                (row["kind"], row["amount"], row["note"])
+                for row in self.rows(
+                    "SELECT kind, amount, note FROM ledger ORDER BY revision"
+                )
+            ],
         )
-        self.assertEqual(0, after["total"])
+
+    def test_bonus_blocks_routine_claims_until_it_is_taken(self):
+        self.service.initialize(self.now)
+        bonus = self.service.grant_allowance(100, "生日", True, self.now)
+        extra = self.service.grant_allowance(40, "加發", False, self.now)
+        opened = self.service.state(self.now)
+        first_period = opened["claimable_periods"][0]
+
+        with self.assertRaises(DomainError) as blocked:
+            self.service.claim(first_period["period_key"], self.now)
+        self.assertEqual("bonus_waiting", blocked.exception.code)
+
+        with self.assertRaises(DomainError) as later:
+            self.service.claim_grant(extra["id"], self.now)
+        self.assertEqual("bonus_waiting", later.exception.code)
+
+        self.service.claim_grant(bonus["id"], self.now)
+        self.service.claim_grant(extra["id"], self.now)
+        self.service.claim(first_period["period_key"], self.now)
+        state = self.service.state(self.now)
+        self.assertEqual([], state["pending_grants"])
+        self.assertEqual(100 + 40 + first_period["amount"], state["total"])
+        notes = [
+            row["note"]
+            for row in self.rows("SELECT note FROM ledger ORDER BY revision")
+        ]
+        period_note = (
+            "今日零用錢" if first_period["claim_kind"] == "on_time" else "補領零用錢"
+        )
+        self.assertEqual(["生日", "加發", period_note], notes[:3])
+
+    def test_guides_are_household_wide_not_per_child(self):
+        house = Store(Path(self.tmp.name) / "house.sqlite3")
+        child_a = Store(Path(self.tmp.name) / "a.sqlite3")
+        child_b = Store(Path(self.tmp.name) / "b.sqlite3")
+        first = PiggyService(child_a, household=house, child_id="c1")
+        second = PiggyService(child_b, household=house, child_id="c2")
+        first.initialize(self.now)
+        second.initialize(self.now)
+
+        first.set_guides(71.5, 18)
+        self.assertEqual({"foot": 71.5, "coin": 18.0}, second.state(self.now)["pig_guides"])
+        self.assertEqual({"foot": 71.5, "coin": 18.0}, first.state(self.now)["pig_guides"])
 
 
 if __name__ == "__main__":
