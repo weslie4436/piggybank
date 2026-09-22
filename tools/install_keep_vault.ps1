@@ -1,4 +1,5 @@
 # Register a hidden logon task that keeps the PiggyBank vault + Cloudflare tunnel alive.
+# Same shape as FamilyPhotosVault / FamiBookVault / YRoomVault.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $Script = Join-Path $Root "tools\keep_vault.ps1"
@@ -13,6 +14,18 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
 
 Register-ScheduledTask -TaskName $Task -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Keep the PiggyBank vault and public tunnel up after login." -Force | Out-Null
+
+# Same as FamilyPhotosVault: logon task only. A HKCU Run copy starts first, grabs
+# the mutex, then this task exits 0 and will not restart on failure.
+$run = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+if (Get-ItemProperty -Path $run -Name "PiggyBankVault" -ErrorAction SilentlyContinue) {
+  Remove-ItemProperty -Path $run -Name "PiggyBankVault" -ErrorAction SilentlyContinue
+}
+
+# AtLogOn only fires next login; start now so this session is already covered.
+if ((Get-ScheduledTask -TaskName $Task).State -ne "Running") {
+  Start-ScheduledTask -TaskName $Task
+}
 
 Write-Host "scheduled $Task"
 schtasks /Query /TN $Task | Out-Host

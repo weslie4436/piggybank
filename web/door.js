@@ -547,7 +547,7 @@
       openParentGate(function () { openAllowanceCard(); });
       return;
     }
-    openAct("零用金設定", function (body) {
+    openAct("零用錢設定", function (body) {
       const err = document.createElement("p");
       err.className = "err";
       const amount = document.createElement("input");
@@ -607,7 +607,7 @@
         if (period === "monthly") payload.monthday = Number(extra.value);
         busy = true;
         startWaitCardPct();
-        showWaitCard("零用金設定");
+        showWaitCard("零用錢設定");
         try {
           const x = await window.FamiGate.api("/api/settings/allowance", key, {
             method: "PUT",
@@ -673,7 +673,7 @@
       allow.type = "button";
       allow.className = "news-row";
       const allowTitle = document.createElement("strong");
-      allowTitle.textContent = "零用金設定";
+      allowTitle.textContent = "零用錢設定";
       allow.appendChild(allowTitle);
       allow.addEventListener("click", function () { openAllowanceCard(); });
       body.appendChild(allow);
@@ -1768,7 +1768,7 @@
       window.FamiGate.savePersonal(x.j.token);
       location.href = "./index.html?k=" + encodeURIComponent(x.j.token) + "#k=" + encodeURIComponent(x.j.token);
     } catch (err) {
-      if (nameErr) nameErr.textContent = "家裡還沒開";
+      if (nameErr) nameErr.textContent = "伺服器維修 請聯絡家長";
       waitEl.hidden = true;
       nameForm.hidden = false;
       busy = false;

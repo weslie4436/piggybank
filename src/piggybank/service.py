@@ -1313,9 +1313,9 @@ class PiggyService:
                     selected["amount"],
                     balance,
                     (
-                        "今日零用金"
+                        "今日零用錢"
                         if selected["claim_kind"] == "on_time"
-                        else "補領零用金"
+                        else "補領零用錢"
                     ),
                     json.dumps(
                         {

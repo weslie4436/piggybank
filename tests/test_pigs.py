@@ -203,7 +203,7 @@ class TestClaim(PiggyServiceTestCase):
             ),
         )
         self.assertEqual(
-            ("allowance_claim", 30, 30, "今日零用金", 3),
+            ("allowance_claim", 30, 30, "今日零用錢", 3),
             (
                 ledger["kind"],
                 ledger["amount"],
