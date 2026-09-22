@@ -1709,6 +1709,12 @@
       }
       const x = await window.FamiGate.api("/api/door", key, { timeout: 20000 });
       if (!x.res || !x.res.ok || !x.j) {
+        const badKey = !!(x.res && (x.res.status === 401 || (x.j && x.j.error === "unauthorized")));
+        if (badKey) {
+          setBoot(false);
+          if (statusEl) statusEl.textContent = (x.j && x.j.message) || "請用邀請連結打開";
+          return;
+        }
         if (statusEl) statusEl.textContent = "維護中,請5分鐘後再試";
         scheduleReconnect();
         return;
