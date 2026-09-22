@@ -28,7 +28,7 @@
   const HEART_RAIL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20C10.5 18.4 7.3 15.8 5.4 11.9C4 9.1 5.2 6 8.4 6c1.8 0 3 1.1 3.6 2.2C12.6 7.1 13.8 6 15.6 6c3.2 0 4.4 3.1 3 5.9C16.7 15.8 13.5 18.4 12 20Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';
   const PALETTE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="9" cy="10" r="1.2"/><circle cx="13.5" cy="9.2" r="1.2"/><circle cx="15" cy="13" r="1.2"/><circle cx="10.5" cy="14.4" r="1.2"/></svg>';
   const SPEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8.5h10l-.8 10.3H7.8L7 8.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.4 8.5V7.2a2.6 2.6 0 0 1 5.2 0v1.3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
-  const WRENCH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.5a3.4 3.4 0 0 1 3.8 3.8l-2.4 2.4-2.2-2.2 2.4-2.4zM13.4 9.8L6.2 17l1.8 1.8 7.2-7.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  const CROWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.6 16.6h16.8L18.4 8.1 14.4 12.1 12 5.2 9.6 12.1 5.6 8.1 3.6 16.6z"/><path fill="currentColor" d="M5 18.5h14v1.9H5z"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
   const DEBUG_KEY = "piggybank.debug";
   const THEME_KEY = "piggybank.theme";
@@ -61,6 +61,7 @@
   let ignoreClick = false;
   const pendingClaim = Object.create(null);
   const COIN_MS = 460;
+  const COIN_JUMP_MS = 920;
   let allowTimer = 0;
   let allowServerNow = 0;
   let allowOrigin = 0;
@@ -449,7 +450,7 @@
     menu.appendChild(gearRow(CAMERA, "更換頭像", "cover", function () { openCoverCard(); }));
     menu.appendChild(gearRow(SCENE, "更換背景", "backdrop", function () { openBackdropCard(); }));
     menu.appendChild(gearRow(PALETTE, "主題選擇", "theme", function () { openThemeCard(); }));
-    menu.appendChild(gearRow(WRENCH, "GM功能", "gm", function () { openGmCard(); }));
+    menu.appendChild(gearRow(CROWN, "GM功能", "gm", function () { openGmCard(); }));
     paintDebugChrome();
     toggle.addEventListener("click", function (ev) {
       ev.preventDefault();
@@ -762,7 +763,7 @@
     const id = allowed[theme] ? theme : "melody";
     document.documentElement.setAttribute("data-theme", id);
     const bar = document.querySelector('meta[name="theme-color"]');
-    const colors = { melody: "#ff6b9d", kuromi: "#100e14", cinnamoroll: "#7ec8e3" };
+    const colors = { melody: "#ff6b9d", kuromi: "#b57edc", cinnamoroll: "#7ec8e3" };
     if (bar) bar.setAttribute("content", colors[id]);
   }
 
@@ -1014,7 +1015,7 @@
       done();
     }
     coin.addEventListener("animationend", onEnd);
-    window.setTimeout(done, COIN_MS + 80);
+    window.setTimeout(done, COIN_JUMP_MS + 40);
   }
 
   function setPigState(name, on) {
