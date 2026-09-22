@@ -347,12 +347,7 @@ class PiggyService:
     def authorize_parent(self, pin: str, now: datetime) -> None:
         self._require_aware(now)
         current = now.astimezone(TAIPEI)
-        with self.store.transaction() as conn:
-            deferred_error = self._authorize_parent_in_transaction(
-                conn,
-                pin,
-                current,
-            )
+        deferred_error = self._authorize_parent(pin, current)
         if deferred_error is not None:
             raise deferred_error
 

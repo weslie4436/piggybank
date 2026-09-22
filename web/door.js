@@ -30,7 +30,6 @@
   const SPEND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8.5h10l-.8 10.3H7.8L7 8.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.4 8.5V7.2a2.6 2.6 0 0 1 5.2 0v1.3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
   const CROWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.6 16.6h16.8L18.4 8.1 14.4 12.1 12 5.2 9.6 12.1 5.6 8.1 3.6 16.6z"/><path fill="currentColor" d="M5 18.5h14v1.9H5z"/></svg>';
   const SEEN_KEY = "piggybank.lastSeenRevision";
-  const DEBUG_KEY = "piggybank.debug";
   const GUIDE_SHOW_KEY = "piggybank.guides.show";
   const THEMES = [
     ["melody", "Melody"],
@@ -89,24 +88,6 @@
 
   function shouldAnimate(rev) {
     return !reduceMotion() && Number(rev || 0) > seenRevision();
-  }
-
-  function isDebug() {
-    try { return sessionStorage.getItem(DEBUG_KEY) === "1"; } catch (e) { return false; }
-  }
-
-  function setDebug(on) {
-    try {
-      if (on) sessionStorage.setItem(DEBUG_KEY, "1");
-      else sessionStorage.removeItem(DEBUG_KEY);
-    } catch (e) {}
-    paintDebugChrome();
-    showRail();
-  }
-
-  function paintDebugChrome() {
-    const row = document.querySelector('.settings-entry[data-job="gm"]');
-    if (row) row.classList.toggle("is-host", isDebug());
   }
 
   function loadGuideShow() {
@@ -464,7 +445,6 @@
     menu.appendChild(gearRow(SCENE, "更換背景", "backdrop", function () { openBackdropCard(); }));
     menu.appendChild(gearRow(PALETTE, "主題選擇", "theme", function () { openThemeCard(); }));
     menu.appendChild(gearRow(CROWN, "GM功能", "gm", function () { openGmCard(); }));
-    paintDebugChrome();
     toggle.addEventListener("click", function (ev) {
       ev.preventDefault();
       ev.stopPropagation();
@@ -630,7 +610,7 @@
           if (!x.res || !x.res.ok) {
             const message = (x.j && x.j.message) || "請再試一次";
             hideWaitCard();
-            if (message.indexOf("密碼") >= 0) {
+            if ((x.j && x.j.error) === "bad_pin") {
               parentPin = "";
               openParentGate(function () { openAllowanceCard(); });
               return;
@@ -681,7 +661,7 @@
           }).then(function (x) {
             if (!x.res || !x.res.ok) {
               const message = (x.j && x.j.message) || "請再試一次";
-              if (message.indexOf("密碼") >= 0) {
+              if ((x.j && x.j.error) === "bad_pin") {
                 parentPin = "";
                 openParentGate(function () { openThemeCard(); });
               }
@@ -751,7 +731,7 @@
           if (!x.res || !x.res.ok) {
             const message = (x.j && x.j.message) || "請再試一次";
             hideWaitCard();
-            if (message.indexOf("密碼") >= 0) {
+            if ((x.j && x.j.error) === "bad_pin") {
               parentPin = "";
               openParentGate(function () { openGrantCard(); });
               return;
@@ -789,9 +769,6 @@
       grant.appendChild(grantTitle);
       grant.addEventListener("click", function () { openGrantCard(); });
       body.appendChild(grant);
-      addSwitch(body, "切換測試", isDebug(), function (on) {
-        setDebug(on);
-      });
       addSwitch(body, "對位線", guides.show, function (on) {
         setGuideShow(on);
         if (on) closeAct();

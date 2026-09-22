@@ -479,6 +479,21 @@ class TestGrantAndGuides(PiggyServiceTestCase):
         self.assertEqual({"foot": 71.5, "coin": 18.0}, second.state(self.now)["pig_guides"])
         self.assertEqual({"foot": 71.5, "coin": 18.0}, first.state(self.now)["pig_guides"])
 
+    def test_grant_uses_household_pin_for_a_separate_child_account(self):
+        house = Store(Path(self.tmp.name) / "house.sqlite3")
+        child_store = Store(Path(self.tmp.name) / "kid.sqlite3")
+        house.initialize()
+        parent = PiggyService(house)
+        parent.set_parent_pin("123456", self.now)
+        kid = PiggyService(child_store, household=house, child_id="c2")
+        kid.initialize(self.now)
+
+        kid.authorize_parent("123456", self.now)
+        granted = kid.grant_allowance(50, "加菜", True, self.now)
+
+        self.assertEqual(50, granted["amount"])
+        self.assertTrue(kid.state(self.now)["pending_grants"][0]["is_bonus"])
+
 
 if __name__ == "__main__":
     unittest.main()
