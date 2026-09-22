@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
-from piggybank.schedule import TAIPEI, eligible_periods, next_allowance_at
+from piggybank.schedule import TAIPEI, due_at, eligible_periods, next_allowance_at
 from piggybank.store import Store
 
 DEFAULT_ALLOWANCE_AMOUNT = 30
@@ -1235,43 +1235,54 @@ class PiggyService:
                 "claim_kind": selected["claim_kind"],
             }
 
-    def debug_feed(self, now: datetime) -> dict:
+    def debug_feed(self, now: datetime, days: int = 10) -> dict:
+        """Queue unclaimed daily allowances. Money moves only through claim()."""
         self._require_aware(now)
-        timestamp = now.astimezone(TAIPEI).isoformat()
-        amount = 150
+        if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+            raise ValueError("days must be positive")
+        current = now.astimezone(TAIPEI)
+        timestamp = current.isoformat()
         with self.store.transaction() as conn:
-            self._feed_in_transaction(conn, amount, timestamp)
-            total = conn.execute(
+            earliest = conn.execute(
                 """
-                SELECT COALESCE(SUM(value), 0) AS total
-                FROM pigs
-                WHERE status IN ('growing','full','reserved')
+                SELECT effective_date FROM allowance_rules
+                ORDER BY effective_date, id
+                LIMIT 1
                 """
-            ).fetchone()["total"]
-            revision = Store.bump_revision(conn)
+            ).fetchone()
+            latest = conn.execute(
+                """
+                SELECT amount FROM allowance_rules
+                ORDER BY effective_date DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            amount = (
+                int(latest["amount"])
+                if latest is not None
+                else DEFAULT_ALLOWANCE_AMOUNT
+            )
+            if earliest is None:
+                end = current.date()
+                if due_at(end) > current:
+                    end = end - timedelta(days=1)
+                start = end - timedelta(days=days - 1)
+            else:
+                end = date.fromisoformat(str(earliest["effective_date"]))
+                start = end - timedelta(days=days)
             conn.execute(
                 """
-                INSERT INTO ledger (
-                  id, kind, amount, balance_after, note,
-                  metadata, created_at, revision
+                INSERT INTO allowance_rules (
+                  amount, period, weekday, monthday, effective_date, created_at
                 )
-                VALUES (?, 'debug_feed', ?, ?, '測試加錢', ?, ?, ?)
+                VALUES (?, 'daily', NULL, NULL, ?, ?)
                 """,
-                (
-                    uuid4().hex,
-                    amount,
-                    total,
-                    json.dumps(
-                        {"source": "debug"},
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                    timestamp,
-                    revision,
-                ),
+                (amount, start.isoformat(), timestamp),
             )
+            revision = Store.bump_revision(conn)
             return {
                 "revision": revision,
+                "queued_days": days,
                 "amount": amount,
-                "total": total,
+                "effective_date": start.isoformat(),
             }

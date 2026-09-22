@@ -22,8 +22,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./app.css?v=3"/>
-<link rel="stylesheet" href="./piggy.css?v=16"/>
+<link rel="stylesheet" href="./app.css?v=4"/>
+<link rel="stylesheet" href="./piggy.css?v=18"/>
 <script src="./config.js?v=1789927001"></script>
 <script>
 (function () {
@@ -128,7 +128,9 @@
       </div>
     </div>
   </div>
-  <div id="pig-home">
+  <div id="pig-home" class="pig-pager">
+    <div class="pig-track" id="pig-track">
+    <div class="pig-page" data-page="bank">
     <section id="active-pig">
       <div class="pig-stage">
         <span class="pig-ground" aria-hidden="true"></span>
@@ -149,7 +151,15 @@
         <span class="money-num" id="ovNum">0</span>
       </button>
     </section>
-    <div class="feed news-list" id="ledger"></div>
+    </div>
+    <div class="pig-page" data-page="ledger">
+      <div class="feed news-list" id="ledger"></div>
+    </div>
+    </div>
+    <div class="page-dots" id="page-dots" aria-label="兩頁">
+      <span class="is-on"></span>
+      <span></span>
+    </div>
   </div>
 </div>
 <aside class="photo-rail" id="photo-rail" hidden aria-label="撲滿操作"></aside>
@@ -198,6 +208,6 @@
   <button type="button" class="invite-go" id="home-installed">我已加入</button>
 </div>
 <script src="./gate.js?v=4"></script>
-<script src="./door.js?v=20"></script>
+<script src="./door.js?v=21"></script>
 </body>
 </html>

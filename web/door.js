@@ -66,6 +66,9 @@
   let allowOrigin = 0;
   let allowNext = 0;
   let guides = { foot: 88, coin: 22, show: false };
+  let parentPin = "";
+  let parentRule = null;
+  let tickNode = null;
 
   function yen(n) {
     return String(Math.max(0, Math.round(Number(n) || 0))) + " 元";
@@ -370,7 +373,12 @@
       if (typed.length >= 6) return;
       typed += ch;
       paint();
-      if (typed.length === 6) onFull(typed);
+      if (typed.length === 6) {
+        onFull(typed, function () {
+          typed = "";
+          paint();
+        });
+      }
     }
     ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].forEach(function (ch) {
       if (ch === "") {
@@ -491,50 +499,91 @@
     });
   }
 
+  function fieldRow(label, input) {
+    const row = document.createElement("div");
+    row.className = "apple-row";
+    input.setAttribute("aria-label", label);
+    input.autocomplete = "off";
+    row.appendChild(input);
+    return row;
+  }
+
+  function openParentGate(done) {
+    openAct("家長密碼", function (body) {
+      const err = document.createElement("p");
+      err.className = "err";
+      body.appendChild(err);
+      pinPad(body, function (value, reset) {
+        if (busy) return;
+        busy = true;
+        api("/api/settings/read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: value }),
+          timeout: 15000,
+        }).then(function (x) {
+          if (!x.res || !x.res.ok) {
+            err.textContent = (x.j && x.j.message) || "家長密碼錯誤";
+            const dots = body.querySelector(".gate-dots");
+            if (dots) {
+              dots.classList.add("is-bad");
+              window.setTimeout(function () { dots.classList.remove("is-bad"); }, 400);
+            }
+            reset();
+            return;
+          }
+          parentPin = value;
+          parentRule = (x.j && x.j.allowance_rule) || null;
+          done();
+        }).finally(function () { busy = false; });
+      });
+    });
+  }
+
   function openAllowanceCard() {
+    if (!parentPin) {
+      openParentGate(function () { openAllowanceCard(); });
+      return;
+    }
     openAct("零用金設定", function (body) {
       const err = document.createElement("p");
       err.className = "err";
       const amount = document.createElement("input");
-      amount.type = "number";
-      amount.min = "1";
-      amount.placeholder = "金額";
       amount.inputMode = "numeric";
-      const period = document.createElement("select");
-      [["daily", "每天"], ["weekly", "每週"], ["monthly", "每月"]].forEach(function (pair) {
-        const opt = document.createElement("option");
-        opt.value = pair[0];
-        opt.textContent = pair[1];
-        period.appendChild(opt);
-      });
+      amount.value = parentRule && parentRule.amount ? String(parentRule.amount) : "";
+      let period = (parentRule && parentRule.period) || "daily";
+      const picks = document.createElement("div");
+      picks.className = "mode-bar";
       const extra = document.createElement("input");
-      extra.type = "number";
-      extra.placeholder = "週幾 0-6 或 月幾 1-28";
       extra.inputMode = "numeric";
-      extra.hidden = true;
-      period.addEventListener("change", function () {
-        extra.hidden = period.value === "daily";
+      const extraRow = fieldRow("週幾或每月幾號", extra);
+      extraRow.hidden = period === "daily";
+      if (period === "weekly" && parentRule && parentRule.weekday != null) extra.value = String(parentRule.weekday);
+      if (period === "monthly" && parentRule && parentRule.monthday != null) extra.value = String(parentRule.monthday);
+      [["daily", "每天"], ["weekly", "每週"], ["monthly", "每月"]].forEach(function (pair) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "mode-btn" + (pair[0] === period ? " is-on" : "");
+        btn.textContent = pair[1];
+        btn.addEventListener("click", function () {
+          period = pair[0];
+          extraRow.hidden = period === "daily";
+          extra.setAttribute("aria-label", period === "weekly" ? "週幾 0 到 6" : "每月幾號");
+          picks.querySelectorAll(".mode-btn").forEach(function (el) {
+            el.classList.toggle("is-on", el === btn);
+          });
+        });
+        picks.appendChild(btn);
       });
       const date = document.createElement("input");
       date.type = "date";
       const today = new Date();
-      date.value = today.toISOString().slice(0, 10);
+      date.value = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
       body.appendChild(err);
-      const aLabel = document.createElement("label");
-      aLabel.textContent = "金額";
-      body.appendChild(aLabel);
-      body.appendChild(amount);
-      const pLabel = document.createElement("label");
-      pLabel.textContent = "週期";
-      body.appendChild(pLabel);
-      body.appendChild(period);
-      body.appendChild(extra);
-      const dLabel = document.createElement("label");
-      dLabel.textContent = "生效日";
-      body.appendChild(dLabel);
-      body.appendChild(date);
-      let pin = "";
-      pinPad(body, function (value) { pin = value; });
+      body.appendChild(fieldRow("金額", amount));
+      body.appendChild(picks);
+      body.appendChild(extraRow);
+      body.appendChild(fieldRow("生效日", date));
       const go = document.createElement("button");
       go.type = "button";
       go.className = "tag-apply";
@@ -546,18 +595,14 @@
           err.textContent = "請填金額";
           return;
         }
-        if (pin.length !== 6) {
-          err.textContent = "請輸入六位數 PIN";
-          return;
-        }
         const payload = {
-          pin: pin,
+          pin: parentPin,
           amount: n,
-          period: period.value,
+          period: period,
           effective_date: date.value,
         };
-        if (period.value === "weekly") payload.weekday = Number(extra.value);
-        if (period.value === "monthly") payload.monthday = Number(extra.value);
+        if (period === "weekly") payload.weekday = Number(extra.value);
+        if (period === "monthly") payload.monthday = Number(extra.value);
         busy = true;
         startWaitCardPct();
         showWaitCard("零用金設定");
@@ -569,11 +614,24 @@
             timeout: 15000,
           });
           if (!x.res || !x.res.ok) {
-            err.textContent = (x.j && x.j.message) || "請再試一次";
+            const message = (x.j && x.j.message) || "請再試一次";
+            hideWaitCard();
+            if (message.indexOf("密碼") >= 0) {
+              parentPin = "";
+              openParentGate(function () { openAllowanceCard(); });
+              return;
+            }
+            err.textContent = message;
             return;
           }
+          parentRule = {
+            amount: n,
+            period: period,
+            weekday: period === "weekly" ? Number(extra.value) : null,
+            monthday: period === "monthly" ? Number(extra.value) : null,
+          };
           closeAct();
-          await loadState(true);
+          await loadState(false);
         } finally {
           hideWaitCard();
           busy = false;
@@ -607,7 +665,7 @@
     });
   }
 
-  function openGmCard() {
+  function openGmMenu() {
     openAct("GM功能", function (body) {
       const allow = document.createElement("button");
       allow.type = "button";
@@ -632,13 +690,21 @@
       feed.type = "button";
       feed.className = "tag-apply gm-feed";
       feed.hidden = !isDebug();
-      feed.innerHTML = '<span class="tag-apply-face">測試加錢</span>';
+      feed.innerHTML = '<span class="tag-apply-face">給十天零用錢</span>';
       feed.addEventListener("click", function () {
         closeAct();
         debugFeed();
       });
       body.appendChild(feed);
     });
+  }
+
+  function openGmCard() {
+    if (!parentPin) {
+      openParentGate(function () { openGmMenu(); });
+      return;
+    }
+    openGmMenu();
   }
 
   function startWaitCardPct() {
@@ -744,6 +810,7 @@
       el.dataset.v = String(cur);
       el.textContent = String(cur);
       paintedTotal = cur;
+      playTick();
       left -= 1;
       if (left <= 0) {
         stopRoll(el);
@@ -772,7 +839,10 @@
       const span = Math.abs(left);
       const step = span > 500 ? Math.ceil(span / 18) : span > 80 ? Math.ceil(span / 12) : span > 24 ? 2 : 1;
       cur += left > 0 ? Math.min(step, left) : -Math.min(step, -left);
-      el.textContent = String(cur);
+      if (String(cur) !== el.textContent) {
+        el.textContent = String(cur);
+        playTick();
+      }
     }, 40);
   }
 
@@ -805,6 +875,22 @@
     if (played && played.catch) played.catch(function () {});
   }
 
+  function playTick() {
+    if (reduceMotion()) return;
+    const now = Date.now();
+    if (now - (playTick.at || 0) < 42) return;
+    playTick.at = now;
+    if (!tickNode) {
+      tickNode = new Audio("./sounds/tick.wav?v=1");
+      tickNode.volume = 0.4;
+    }
+    try {
+      tickNode.currentTime = 0;
+      const played = tickNode.play();
+      if (played && played.catch) played.catch(function () {});
+    } catch (e) {}
+  }
+
   function chaseTotal(el) {
     if (!el || el._chase) return;
     let from = Number(el.textContent) || 0;
@@ -820,7 +906,10 @@
       }
       const t = Math.min(1, (now - fromAt) / COIN_MS);
       const cur = Math.round(from + (goal - from) * t);
-      el.textContent = String(cur);
+      if (String(cur) !== el.textContent) {
+        el.textContent = String(cur);
+        playTick();
+      }
       if (t >= 1 && Number(el.textContent) === goal) {
         window.clearInterval(el._chase);
         el._chase = 0;
@@ -998,29 +1087,79 @@
 
   function bindSwipe() {
     const host = document.getElementById("pig-home");
-    if (!host || host.dataset.swipe) return;
+    const track = document.getElementById("pig-track");
+    if (!host || !track || host.dataset.swipe) return;
     host.dataset.swipe = "1";
-    let track = null;
+    let drag = null;
+    function pageX() {
+      return hostTab === "ledger" ? -host.clientWidth : 0;
+    }
+    function moveTo(x) {
+      track.style.transition = "none";
+      track.style.transform = "translate3d(" + Math.round(x) + "px,0,0)";
+    }
+    function paintDragDots(x) {
+      const dots = document.getElementById("page-dots");
+      const width = host.clientWidth || 1;
+      if (!dots) return;
+      const on = (-x / width) >= 0.5 ? 1 : 0;
+      Array.from(dots.children).forEach(function (el, i) {
+        el.classList.toggle("is-on", i === on);
+      });
+    }
     host.addEventListener("pointerdown", function (ev) {
       if (!ready) return;
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
       if (sheetOpen()) return;
       if (ev.target && ev.target.closest && ev.target.closest("input, textarea, .settings-menu, .pig-say")) return;
-      track = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+      drag = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, t: Date.now(), lock: "", base: pageX() };
+    });
+    host.addEventListener("pointermove", function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const dx = ev.clientX - drag.x;
+      const dy = ev.clientY - drag.y;
+      if (!drag.lock) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        drag.lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (drag.lock !== "x") {
+          drag = null;
+          return;
+        }
+        host.classList.add("is-dragging");
+        try { host.setPointerCapture(ev.pointerId); } catch (e) {}
+      }
+      const width = host.clientWidth || 1;
+      let x = drag.base + dx;
+      if (x > 0) x *= 0.34;
+      if (x < -width) x = -width + (x + width) * 0.34;
+      moveTo(x);
+      paintDragDots(x);
     });
     function end(ev) {
-      if (!track || (ev && ev.pointerId !== track.id)) return;
-      const dx = ev.clientX - track.x;
-      const dy = ev.clientY - track.y;
-      track = null;
-      if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+      if (!drag || (ev && ev.pointerId !== drag.id)) return;
+      const dx = ev.clientX - drag.x;
+      const dt = Math.max(1, Date.now() - drag.t);
+      const locked = drag.lock;
+      drag = null;
+      host.classList.remove("is-dragging");
+      if (locked !== "x") return;
       ignoreClick = true;
       window.setTimeout(function () { ignoreClick = false; }, 350);
-      if (dx < 0) pickTab("ledger");
-      else pickTab("bank");
+      const flick = dx / dt;
+      if (dx < -48 || flick < -0.45) pickTab("ledger");
+      else if (dx > 48 || flick > 0.45) pickTab("bank");
+      else pickTab(hostTab);
     }
     host.addEventListener("pointerup", end);
-    host.addEventListener("pointercancel", function () { track = null; });
+    host.addEventListener("pointercancel", function () {
+      drag = null;
+      host.classList.remove("is-dragging");
+      placePager(true);
+    });
+    window.addEventListener("resize", function () {
+      if (host.classList.contains("is-dragging")) return;
+      placePager(false);
+    });
   }
 
   async function debugFeed() {
@@ -1034,7 +1173,10 @@
         body: JSON.stringify({}),
         timeout: 15000,
       });
-      if (x.res && x.res.ok) await loadState(true);
+      if (x.res && x.res.ok) {
+        pickTab("bank");
+        await loadState(false);
+      }
     } finally {
       setCabRun(false);
       busy = false;
@@ -1076,14 +1218,38 @@
         el.classList.toggle("is-on", el.dataset.mode === hostTab);
       });
     }
+    const dots = document.getElementById("page-dots");
+    if (dots) {
+      const on = hostTab === "ledger" ? 1 : 0;
+      Array.from(dots.children).forEach(function (el, i) {
+        el.classList.toggle("is-on", i === on);
+      });
+    }
     const tagBoard = document.getElementById("tag-board");
     if (tagBoard) tagBoard.hidden = true;
     showRail();
   }
 
+  function placePager(animate) {
+    const host = document.getElementById("pig-home");
+    const track = document.getElementById("pig-track");
+    if (!host || !track) return;
+    const x = "translate3d(" + Math.round(hostTab === "ledger" ? -host.clientWidth : 0) + "px,0,0)";
+    if (!animate) {
+      track.style.transition = "none";
+      track.style.transform = x;
+      requestAnimationFrame(function () { track.style.transition = ""; });
+      return;
+    }
+    track.style.transition = "transform 0.46s cubic-bezier(0.22, 0.8, 0.24, 1)";
+    void track.offsetWidth;
+    track.style.transform = x;
+  }
+
   function pickTab(tab) {
-    hostTab = tab || "bank";
+    hostTab = tab === "ledger" ? "ledger" : "bank";
     paintModes();
+    placePager(true);
     if (hostTab === "ledger") loadLedger();
   }
 
@@ -1431,6 +1597,7 @@
       bindModes();
       hostTab = "bank";
       paintModes();
+      placePager(false);
       setBoot(false, "");
       if (statusEl) statusEl.textContent = "";
       await loadState(false);

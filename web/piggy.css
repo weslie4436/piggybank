@@ -57,13 +57,13 @@ button.money-hero {
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  color: inherit;
+  color: var(--money, var(--rose));
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 .money-hero {
   margin: 8px 0 0;
-  color: var(--ink);
+  color: var(--money, var(--rose));
   font-size: clamp(45px, 13.6vw, 83px);
   overflow-wrap: anywhere;
   font-weight: 650;
@@ -111,14 +111,53 @@ button.money-hero {
   letter-spacing: -0.02em;
 }
 
-.hall.is-mode-ledger #pig-overview,
-.hall.is-mode-ledger #active-pig,
-.hall.is-mode-ledger #pig-allowance,
-.hall:not(.is-mode-ledger) #ledger {
-  display: none !important;
+.pig-track {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  width: 100%;
+  transition: transform 0.46s cubic-bezier(0.22, 0.8, 0.24, 1);
 }
-.hall.is-mode-ledger #ledger {
-  display: flex !important;
+.pig-pager.is-dragging .pig-track {
+  transition: none;
+}
+.pig-page {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.pig-page[data-page="bank"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+.pig-page[data-page="ledger"] {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.page-dots {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+}
+.page-dots span {
+  display: block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.page-dots span.is-on {
+  background: var(--rose);
 }
 
 #active-pig {
@@ -544,6 +583,7 @@ html[data-theme="melody"] {
   --ring-3: #ff6b9d;
   --ring-4: #e85a8c;
   --ring-5: #c94a7a;
+  --money: #ff7eae;
 }
 
 html[data-theme="kuromi"] {
@@ -565,6 +605,7 @@ html[data-theme="kuromi"] {
   --ring-3: #ff8cc8;
   --ring-4: #c9b6e4;
   --ring-5: #4b3d72;
+  --money: #ee8ad0;
 }
 
 html[data-theme="cinnamoroll"] {
@@ -586,12 +627,21 @@ html[data-theme="cinnamoroll"] {
   --ring-3: #7ec8e3;
   --ring-4: #5aaecb;
   --ring-5: #3a5f74;
+  --money: #6eb6dc;
 }
 
 #actBody {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+#actBody > .gate-dots,
+#actBody > .gate-pad {
+  align-self: center;
+  flex: 0 0 auto;
+}
+#actBody > .mode-bar {
+  justify-content: center;
 }
 #actBody > .err { margin: 0; }
 #actBody > label { margin: 4px 0 0; }
@@ -692,17 +742,17 @@ html.has-rail #pig-home {
 }
 
 @media (orientation: portrait) {
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) {
+  .hall.with-feed:not(.is-invite):not(.is-booting) {
     height: 100vh;
     height: 100svh;
     max-height: 100svh;
     overflow: hidden;
     overscroll-behavior: none;
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .home-head {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .home-head {
     flex: 0 0 auto;
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) #pig-home {
+  .hall.with-feed:not(.is-invite):not(.is-booting) #pig-home {
     flex: 1 1 auto;
     min-height: 0;
     width: min(720px, 100%);
@@ -711,26 +761,30 @@ html.has-rail #pig-home {
     overflow: hidden;
     justify-content: flex-start;
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) #active-pig {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .pig-page {
+    height: 100%;
+    min-height: 0;
+  }
+  .hall.with-feed:not(.is-invite):not(.is-booting) #active-pig {
     flex: 0 1 auto;
     min-height: 0;
     justify-content: center;
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-stage,
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-art {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .pig-stage,
+  .hall.with-feed:not(.is-invite):not(.is-booting) .pig-art {
     max-height: calc(100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24rem);
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-art {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .pig-art {
     width: 100%;
     height: auto;
     object-fit: contain;
     object-position: center top;
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .money-hero {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .money-hero {
     margin: 4px 0 0;
     font-size: clamp(38px, 11.2vw, 64px);
   }
-  .hall.with-feed:not(.is-invite):not(.is-booting):not(.is-mode-ledger) .pig-allowance {
+  .hall.with-feed:not(.is-invite):not(.is-booting) .pig-allowance {
     margin-top: 4px;
     gap: 6px;
   }

@@ -382,45 +382,41 @@ class TestWarehouseAndState(PiggyServiceTestCase):
 
 
 class TestDebugFeed(PiggyServiceTestCase):
-    def test_debug_feed_adds_to_the_same_pig_and_records_ledger(self):
+    def test_debug_feed_queues_ten_unclaimed_days_for_the_normal_claim(self):
         self.service.initialize(self.now)
+        before = self.service.state(self.now)
+        self.assertEqual(0, before["total"])
 
         result = self.service.debug_feed(self.now)
+        after = self.service.state(self.now)
 
-        pig = self.rows("SELECT * FROM pigs WHERE status='growing'")[0]
-        ledger = self.rows("SELECT * FROM ledger")[0]
-        self.assertEqual(150, pig["value"])
-        self.assertIsNone(pig["page_no"])
+        self.assertEqual(10, result["queued_days"])
+        self.assertEqual(30, result["amount"])
         self.assertEqual(
-            ("debug_feed", 150, 150, "測試加錢", 2),
-            (
-                ledger["kind"],
-                ledger["amount"],
-                ledger["balance_after"],
-                ledger["note"],
-                ledger["revision"],
-            ),
+            len(before["claimable_periods"]) + 10,
+            len(after["claimable_periods"]),
         )
-        self.assertEqual(
-            {
-                "revision": 2,
-                "amount": 150,
-                "total": 150,
-            },
-            result,
-        )
-        self.assertEqual(2, self.store.snapshot()["revision"])
+        self.assertEqual(0, after["total"])
+        self.assertEqual([], self.rows("SELECT kind FROM ledger"))
+        first = after["claimable_periods"][0]
+        claimed = self.service.claim(first["period_key"], self.now)
+        self.assertEqual(first["amount"], claimed["amount"])
+        self.assertEqual(first["amount"], self.service.state(self.now)["total"])
 
-    def test_debug_feed_can_stack_on_the_same_pig(self):
+    def test_debug_feed_can_queue_another_ten_days(self):
         self.service.initialize(self.now)
         self.service.debug_feed(self.now)
+        midway = self.service.state(self.now)
 
         result = self.service.debug_feed(self.now)
+        after = self.service.state(self.now)
 
-        pigs = self.rows("SELECT * FROM pigs WHERE status='growing'")
-        self.assertEqual(1, len(pigs))
-        self.assertEqual(300, pigs[0]["value"])
-        self.assertEqual(300, result["total"])
+        self.assertEqual(10, result["queued_days"])
+        self.assertEqual(
+            len(midway["claimable_periods"]) + 10,
+            len(after["claimable_periods"]),
+        )
+        self.assertEqual(0, after["total"])
 
 
 if __name__ == "__main__":

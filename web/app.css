@@ -1703,7 +1703,8 @@ html.is-reading body {
 }
 .feed.news-list .row-ops .ins-icon.is-loved .ins-face svg {
   fill: currentColor;
-}\n.gate-dots {
+}
+.gate-dots {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1713,6 +1714,8 @@ html.is-reading body {
 }
 .gate-dots[hidden] { display: none !important; }
 .gate-dots span {
+  display: inline-block;
+  flex: 0 0 10px;
   width: 10px;
   height: 10px;
   border: 1.5px solid var(--ink);
@@ -1776,4 +1779,3 @@ html.is-reading body {
   --gate-gap-y: 10px;
 }
 .batch-tag-sheet .gate-key { font-size: 24px; }
-\n

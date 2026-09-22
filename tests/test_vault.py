@@ -263,8 +263,7 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
             {},
         )
         self.assertEqual(200, status)
-        self.assertEqual(150, debug_fed["amount"])
-        self.assertGreaterEqual(debug_fed["total"], 750)
+        self.assertEqual(10, debug_fed["queued_days"])
 
         pigs = self.rows(
             "SELECT * FROM pigs WHERE status='growing' ORDER BY created_at, id"
@@ -403,19 +402,19 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
         self.assertEqual(40, settings["allowance_rule"]["amount"])
         self.assertNotIn("hash", json.dumps(settings))
 
-        status, _, claimed = self.json_request(
+        status, _, queued = self.json_request(
             "POST",
             f"/api/debug/feed?k={key}",
             {},
         )
         self.assertEqual(200, status)
+        self.assertEqual(10, queued["queued_days"])
         status, _, ledger = self.json_request(
             "GET",
             f"/api/ledger?k={key}&limit=1",
         )
         self.assertEqual(200, status)
-        self.assertEqual(1, len(ledger))
-        self.assertEqual(claimed["revision"], ledger[0]["revision"])
+        self.assertEqual([], ledger)
 
 
 class TestQrAndParentExchange(VaultHttpTestCase):

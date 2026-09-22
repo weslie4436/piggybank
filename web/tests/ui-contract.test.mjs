@@ -70,7 +70,7 @@ test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", ()
   assert.match(js, /"gm"/);
   assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
-  assert.match(js, /測試加錢/);
+  assert.match(js, /給十天零用錢/);
   assert.doesNotMatch(js, /rail-feed/);
 });
 
@@ -91,7 +91,7 @@ test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs",
   assert.doesNotMatch(ex, /placeholder = "備註"/);
 });
 
-test("debug 測試加錢 lives in GM功能, not the right rail", () => {
+test("debug 給十天零用錢 lives in GM功能, not the right rail", () => {
   const js = read("door.js");
   assert.match(js, /function openGmCard/);
   assert.match(js, /className = "tag-apply gm-feed"/);
