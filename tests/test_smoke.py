@@ -19,7 +19,8 @@ class TestParser(unittest.TestCase):
         parser = build_parser()
         cases = (
             ("vault", ["vault"]),
-            ("setup", ["setup", "--name", "小明"]),
+            ("setup", ["setup"]),
+            ("invite-url", ["invite-url"]),
             ("ensure-shortcut", ["ensure-shortcut"]),
             ("personal-url", ["personal-url"]),
         )

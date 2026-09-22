@@ -395,7 +395,7 @@ def make_server(
                     raise _HttpError(
                         401,
                         "invalid_invite",
-                        "邀請連結無效或已使用",
+                        "邀請連結無效",
                     ) from error
                 payload = self._read_json()
                 result = keys.join(

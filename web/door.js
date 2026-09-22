@@ -1649,13 +1649,11 @@
     }
     loadGuides();
     applyGuides();
-    key = window.PIGGY_VIEW_KEY || (window.FamiGate && window.FamiGate.currentKey()) || "";
-    if (!document.getElementById("home-head")) {
-      showInvite();
-      booting = false;
-      return;
-    }
-    setBoot(true, "正在連接小豬銀行…");
+    if (window.PIGGY_FORCE_INVITE) key = window.PIGGY_URL_KEY || "";
+    else key = window.PIGGY_VIEW_KEY || (window.FamiGate && window.FamiGate.currentKey()) || "";
+    const invitePage = !document.getElementById("home-head");
+    if (invitePage) showInvite();
+    else setBoot(true, "正在連接小豬銀行…");
     try {
       if (!window.FamiGate.origin()) {
         if (statusEl) statusEl.textContent = "正在連接小豬銀行…";
@@ -1675,9 +1673,17 @@
         return;
       }
       if (x.j.kind === "invite") {
+        if (!invitePage) {
+          location.replace("./hey.html?k=" + encodeURIComponent(key) + "#k=" + encodeURIComponent(key));
+          return;
+        }
         setBoot(false);
         showInvite();
         if (statusEl) statusEl.textContent = "";
+        return;
+      }
+      if (invitePage) {
+        location.replace("./index.html?k=" + encodeURIComponent(key) + "#k=" + encodeURIComponent(key));
         return;
       }
       hideInvite();
@@ -1731,7 +1737,9 @@
   if (nameForm) nameForm.addEventListener("submit", async function (e) {
     e.preventDefault();
     if (busy) return;
-    const inviteKey = window.PIGGY_URL_KEY || window.FamiGate.currentKey();
+    const inviteKey = window.PIGGY_FORCE_INVITE
+      ? (window.PIGGY_URL_KEY || "")
+      : (window.PIGGY_URL_KEY || (window.FamiGate && window.FamiGate.currentKey()) || "");
     if (!inviteKey) {
       if (nameErr) nameErr.textContent = "請用邀請連結打開";
       return;

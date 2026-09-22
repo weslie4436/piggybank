@@ -621,19 +621,17 @@ class TestRequestHardening(VaultHttpTestCase):
 
 
 class TestCli(unittest.TestCase):
-    def test_parser_has_vault_options_setup_name_and_no_pin_option(self):
+    def test_parser_has_vault_options_and_setup_has_no_pin_option(self):
         parser = cli.build_parser()
         vault = parser.parse_args(["vault"])
         self.assertEqual(("0.0.0.0", 8771), (vault.host, vault.port))
-        setup = parser.parse_args(["setup", "--name", "小明"])
-        self.assertEqual("小明", setup.name)
+        setup = parser.parse_args(["setup"])
+        self.assertEqual("setup", setup.command)
         with (
             patch("sys.stderr", io.StringIO()),
             self.assertRaises(SystemExit),
         ):
-            parser.parse_args(
-                ["setup", "--name", "小明", "--pin", "123456"]
-            )
+            parser.parse_args(["setup", "--pin", "123456"])
 
     def test_setup_prompts_twice_writes_invite_file_and_prints_only_url(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -649,7 +647,7 @@ class TestCli(unittest.TestCase):
                 patch("sys.stdout", stdout),
                 patch("sys.stderr", stderr),
             ):
-                result = cli.main(["setup", "--name", "小明"])
+                result = cli.main(["setup"])
 
             invite_url = stdout.getvalue().strip()
             self.assertEqual(0, result)
@@ -660,7 +658,7 @@ class TestCli(unittest.TestCase):
             )
             self.assertRegex(
                 invite_url,
-                rf"^{PAGES_BASE}/index\.html\?k=[A-Za-z0-9_-]+#k=[A-Za-z0-9_-]+$",
+                rf"^{PAGES_BASE}/hey\.html\?k=[A-Za-z0-9_-]+#k=[A-Za-z0-9_-]+$",
             )
             conn = sqlite3.connect(db_path)
             try:

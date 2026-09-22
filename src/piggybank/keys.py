@@ -1,4 +1,4 @@
-"""One-time invite and personal vault key management."""
+"""Shareable invite door and personal vault key management."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ class VaultKeys:
             if row is None or not hmac.compare_digest(digest, row["value"]):
                 raise DomainError(
                     "invalid_invite",
-                    "邀請連結無效或已使用",
+                    "邀請連結無效",
                 )
             conn.execute(
                 """
@@ -106,9 +106,6 @@ class VaultKeys:
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
                 """,
                 (name,),
-            )
-            conn.execute(
-                "DELETE FROM settings WHERE key='invite_token_hash'"
             )
             Store.bump_revision(conn)
             settings = {

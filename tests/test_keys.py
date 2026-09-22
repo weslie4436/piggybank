@@ -1,4 +1,4 @@
-"""Tests for one-time invites and personal vault keys."""
+"""Tests for the shareable invite door and personal vault keys."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ class TestVaultKeys(unittest.TestCase):
         self.assertEqual(before + 1, int(settings["revision"]))
         self.assertEqual({"kind": "invite"}, self.keys.door_for(invite))
 
-    def test_join_consumes_invite_and_returns_personal_reader(self):
+    def test_join_sets_personal_reader_and_keeps_invite(self):
         invite = self.keys.create_invite()
         before = self.store.snapshot()["revision"]
 
@@ -50,7 +50,7 @@ class TestVaultKeys(unittest.TestCase):
 
         settings = self.settings()
         self.assertEqual(token_hash(result["token"]), settings["child_token_hash"])
-        self.assertNotIn("invite_token_hash", settings)
+        self.assertEqual(token_hash(invite), settings["invite_token_hash"])
         self.assertNotIn(result["token"].encode("utf-8"), self.db_path.read_bytes())
         self.assertEqual(before + 1, int(settings["revision"]))
         self.assertEqual(
@@ -69,15 +69,32 @@ class TestVaultKeys(unittest.TestCase):
             {"kind": "personal", "reader": result["reader"]},
             self.keys.door_for(result["token"]),
         )
-        self.assertIsNone(self.keys.door_for(invite))
+        self.assertEqual({"kind": "invite"}, self.keys.door_for(invite))
 
-    def test_join_is_one_time_and_invalid_attempt_changes_nothing(self):
+    def test_join_again_updates_name_and_rotates_personal_key(self):
+        invite = self.keys.create_invite()
+        first = self.keys.join(invite, "小明")
+
+        second = self.keys.join(invite, "小花")
+
+        settings = self.settings()
+        self.assertEqual("小花", settings["display_name"])
+        self.assertEqual(token_hash(invite), settings["invite_token_hash"])
+        self.assertEqual(token_hash(second["token"]), settings["child_token_hash"])
+        self.assertIsNone(self.keys.door_for(first["token"]))
+        self.assertEqual({"kind": "invite"}, self.keys.door_for(invite))
+        self.assertEqual(
+            "小花",
+            self.keys.door_for(second["token"])["reader"]["display_name"],
+        )
+
+    def test_invalid_invite_changes_nothing(self):
         invite = self.keys.create_invite()
         self.keys.join(invite, "小明")
         before = self.settings()
 
         with self.assertRaises(DomainError) as raised:
-            self.keys.join(invite, "另一個名字")
+            self.keys.join("not-the-invite", "另一個名字")
 
         self.assertEqual("invalid_invite", raised.exception.code)
         self.assertEqual(before, self.settings())

@@ -5,6 +5,6 @@
 入口是 GitHub Pages：<https://theoldfathertw.github.io/piggybank/>
 
 ```
-python -m piggybank setup --name 孩子名字
+python -m piggybank setup
 python -m piggybank vault
 ```
