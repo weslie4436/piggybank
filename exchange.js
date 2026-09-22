@@ -137,7 +137,7 @@
       if (waitEl) waitEl.hidden = true;
     } catch (e) {
       stopWait();
-      if (statusEl) statusEl.textContent = "家裡還沒開";
+      if (statusEl) statusEl.textContent = "伺服器維修 請聯絡家長";
     } finally {
       busy = false;
     }

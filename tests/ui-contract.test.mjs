@@ -71,6 +71,9 @@ test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", ()
   assert.match(js, /GM功能/);
   assert.match(js, /切換測試/);
   assert.match(js, /給十天零用錢/);
+  assert.match(js, /零用錢設定/);
+  assert.match(js, /伺服器維修 請聯絡家長/);
+  assert.doesNotMatch(js, /零用金|家裡還沒開/);
   assert.doesNotMatch(js, /rail-feed/);
 });
 
@@ -88,7 +91,9 @@ test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs",
   assert.doesNotMatch(js, /paintKnock|knockOnce|還沒有撲滿/);
   const ex = read("exchange.js");
   assert.match(ex, /className = "apple-row"/);
+  assert.match(ex, /伺服器維修 請聯絡家長/);
   assert.doesNotMatch(ex, /placeholder = "備註"/);
+  assert.doesNotMatch(ex, /家裡還沒開/);
 });
 
 test("debug 給十天零用錢 lives in GM功能, not the right rail", () => {
@@ -146,6 +151,8 @@ test("hey.html has blobs, invite start, and product name 小豬銀行", () => {
     "missing invite-go or apple-row"
   );
   assert.match(html, /小豬銀行/);
+  assert.match(html, /零用錢APP/);
+  assert.doesNotMatch(html, /每天領零用金|零用金/);
 });
 
 test("exchange.html has PIN pad and confirm", () => {
