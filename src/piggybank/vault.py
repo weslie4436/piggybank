@@ -224,12 +224,13 @@ def make_server(
             cors_origin = None
             try:
                 cors_origin = self._cors_origin()
-                self._require_personal()
+                self._account()
                 root = store.db_path.parent
+                child_id = keys.door_for(self._query("k"))["reader"]["id"]
                 path = (
-                    cover_file(root)
+                    cover_file(root, child_id)
                     if kind == "cover"
-                    else backdrop_file(root)
+                    else backdrop_file(root, child_id)
                 )
                 if path is None:
                     raise _HttpError(404, "not_found", "還沒有這張照片")
@@ -319,6 +320,28 @@ def make_server(
                 )
             return token
 
+        def _account(self) -> PiggyService:
+            try:
+                token = self._query("k")
+            except ValueError as error:
+                raise _HttpError(
+                    401,
+                    "unauthorized",
+                    "需要個人入口鑰匙",
+                ) from error
+            door = keys.door_for(token)
+            if door is None or door.get("kind") != "personal":
+                raise _HttpError(
+                    401,
+                    "unauthorized",
+                    "需要個人入口鑰匙",
+                )
+            return keys.open_service(str(door["reader"]["id"]))
+
+        def _exchange_account(self, token: str) -> PiggyService:
+            found = keys.service_for_exchange_token(token)
+            return found if found is not None else service
+
         def _dispatch_get(self, path: str):
             if path == "/api/health":
                 return {"ok": True}
@@ -340,16 +363,16 @@ def make_server(
                     )
                 return door
             if path == "/api/exchange/resolve":
-                return service.resolve_exchange(
-                    self._query("x"),
+                token = self._query("x")
+                return self._exchange_account(token).resolve_exchange(
+                    token,
                     datetime.now(TAIPEI),
                 )
 
             if path == "/api/state":
-                self._require_personal()
-                return service.state(datetime.now(TAIPEI))
+                return self._account().state(datetime.now(TAIPEI))
             if path == "/api/ledger":
-                self._require_personal()
+                account = self._account()
                 query = parse_qs(
                     urlsplit(self.path).query,
                     keep_blank_values=True,
@@ -367,15 +390,14 @@ def make_server(
                 if raw_before is not None and len(raw_before) != 1:
                     raise ValueError("before must appear once")
                 before = raw_before[0] if raw_before is not None else None
-                return service.ledger(limit=limit, before=before)
+                return account.ledger(limit=limit, before=before)
             if path == "/api/exchange/status":
-                self._require_personal()
-                return service.exchange_status(
+                return self._account().exchange_status(
                     self._query("id"),
                     datetime.now(TAIPEI),
                 )
             if path == "/api/exchange/qr.svg":
-                self._require_personal()
+                self._account()
                 token = self._query("x")
                 qr_url = f"{pages}/exchange.html?x={quote(token, safe='')}"
                 return qr_svg(qr_url)
@@ -383,11 +405,9 @@ def make_server(
 
         def _dispatch_post(self, path: str):
             if path == "/api/cover":
-                self._require_personal()
-                return service.save_cover(self._read_image())
+                return self._account().save_cover(self._read_image())
             if path == "/api/backdrop":
-                self._require_personal()
-                return service.save_backdrop(self._read_image())
+                return self._account().save_backdrop(self._read_image())
             if path == "/api/join":
                 try:
                     invite = self._query("k")
@@ -401,6 +421,7 @@ def make_server(
                 result = keys.join(
                     invite,
                     self._string_field(payload, "display_name"),
+                    datetime.now(TAIPEI),
                 )
                 token = result["token"]
                 url = (
@@ -418,43 +439,41 @@ def make_server(
                 }
             if path == "/api/exchange/approve":
                 payload = self._read_json()
-                return service.approve_exchange(
-                    self._string_field(payload, "x"),
+                token = self._string_field(payload, "x")
+                return self._exchange_account(token).approve_exchange(
+                    token,
                     self._string_field(payload, "pin"),
                     self._string_field(payload, "parent_note"),
                     datetime.now(TAIPEI),
                 )
 
             if path == "/api/claim":
-                self._require_personal()
                 payload = self._read_json()
-                return service.claim(
+                return self._account().claim(
                     self._string_field(payload, "period_key"),
                     datetime.now(TAIPEI),
                 )
             if path == "/api/debug/feed":
-                self._require_personal()
+                account = self._account()
                 self._read_json()
-                return service.debug_feed(datetime.now(TAIPEI))
+                return account.debug_feed(datetime.now(TAIPEI))
             if path == "/api/harvest/pig":
-                self._require_personal()
                 payload = self._read_json()
-                return service.harvest_pig(
+                return self._account().harvest_pig(
                     self._string_field(payload, "pig_id"),
                     datetime.now(TAIPEI),
                 )
             if path == "/api/exchange/preview":
-                self._require_personal()
                 payload = self._read_json()
-                return service.preview_exchange(
+                return self._account().preview_exchange(
                     self._integer_field(payload, "amount"),
                     self._string_list_field(payload, "pig_ids"),
                     datetime.now(TAIPEI),
                 )
             if path == "/api/exchange/reserve":
-                self._require_personal()
+                account = self._account()
                 payload = self._read_json()
-                result = service.reserve_exchange(
+                result = account.reserve_exchange(
                     self._integer_field(payload, "amount"),
                     self._string_field(payload, "child_note"),
                     self._string_list_field(payload, "pig_ids"),
@@ -468,16 +487,14 @@ def make_server(
                     ),
                 }
             if path == "/api/exchange/cancel":
-                self._require_personal()
                 payload = self._read_json()
-                return service.cancel_exchange(
+                return self._account().cancel_exchange(
                     self._string_field(payload, "x"),
                     datetime.now(TAIPEI),
                 )
             if path == "/api/settings/read":
-                self._require_personal()
                 payload = self._read_json()
-                return service.parent_settings(
+                return self._account().parent_settings(
                     self._string_field(payload, "pin"),
                     datetime.now(TAIPEI),
                 )
@@ -485,17 +502,17 @@ def make_server(
 
         def _dispatch_put(self, path: str):
             if path == "/api/settings/allowance":
-                self._require_personal()
+                account = self._account()
                 payload = self._read_json()
                 now = datetime.now(TAIPEI)
-                service.authorize_parent(
+                account.authorize_parent(
                     self._string_field(payload, "pin"),
                     now,
                 )
                 effective_date = date.fromisoformat(
                     self._string_field(payload, "effective_date")
                 )
-                rule_id = service.set_allowance(
+                rule_id = account.set_allowance(
                     self._integer_field(payload, "amount"),
                     self._string_field(payload, "period"),
                     effective_date,
@@ -511,12 +528,11 @@ def make_server(
                 )
                 return {
                     "id": rule_id,
-                    "revision": store.snapshot()["revision"],
+                    "revision": account.store.snapshot()["revision"],
                 }
             if path == "/api/settings/theme":
-                self._require_personal()
                 payload = self._read_json()
-                return service.set_theme(
+                return self._account().set_theme(
                     self._string_field(payload, "theme"),
                     self._string_field(payload, "pin"),
                     datetime.now(TAIPEI),

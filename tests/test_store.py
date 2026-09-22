@@ -18,6 +18,7 @@ EXPECTED_TABLES = (
     "ledger",
     "exchanges",
     "pin_attempts",
+    "children",
 )
 
 EXPECTED_INDEXES = (
@@ -25,6 +26,7 @@ EXPECTED_INDEXES = (
     "warehouse_slot",
     "ledger_created",
     "exchanges_status",
+    "children_name",
 )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 from piggybank.auth import hash_pin, new_token, token_hash, verify_pin
@@ -25,8 +26,37 @@ class DomainError(Exception):
 
 
 class PiggyService:
-    def __init__(self, store: Store) -> None:
+    def __init__(
+        self,
+        store: Store,
+        household: Store | None = None,
+        child_id: str = "child1",
+        portrait_root: Path | None = None,
+    ) -> None:
         self.store = store
+        self.household = household or store
+        self.child_id = child_id
+        self.portrait_root = portrait_root or store.db_path.parent
+
+    def _same_ledger(self) -> bool:
+        return self.household.db_path == self.store.db_path
+
+    def _authorize_parent(self, pin: str, current: datetime) -> DomainError | None:
+        with self.household.transaction() as conn:
+            return self._authorize_parent_in_transaction(conn, pin, current)
+
+    def has_exchange_token(self, digest: str) -> bool:
+        if not digest:
+            return False
+        conn = self.store._connect()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM exchanges WHERE token_hash=? LIMIT 1",
+                (digest,),
+            ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
 
     @staticmethod
     def _require_aware(now: datetime) -> None:
@@ -333,12 +363,12 @@ class PiggyService:
             raise deferred_error
 
     def _save_portrait(self, kind: str, blob: bytes) -> dict:
-        root = self.store.db_path.parent
+        root = self.portrait_root
         if kind == "cover":
-            dest = save_cover_image(root, blob)
+            dest = save_cover_image(root, blob, self.child_id)
             rev_key = "cover_rev"
         elif kind == "backdrop":
-            dest = save_backdrop_image(root, blob)
+            dest = save_backdrop_image(root, blob, self.child_id)
             rev_key = "backdrop_rev"
         else:
             raise ValueError("invalid portrait")
@@ -347,7 +377,7 @@ class PiggyService:
         return {
             "revision": revision,
             rev_key: int(dest.stat().st_mtime),
-            **meta(root),
+            **meta(root, self.child_id),
         }
 
     def save_cover(self, blob: bytes) -> dict:
@@ -361,6 +391,23 @@ class PiggyService:
         if theme not in {"kuromi", "melody", "cinnamoroll"}:
             raise ValueError("invalid theme")
         current = now.astimezone(TAIPEI)
+        if not self._same_ledger():
+            deferred_error = self._authorize_parent(pin, current)
+            if deferred_error is not None:
+                raise deferred_error
+            with self.store.transaction() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO settings (key, value)
+                    VALUES ('theme', ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                    """,
+                    (theme,),
+                )
+                return {
+                    "revision": Store.bump_revision(conn),
+                    "theme": theme,
+                }
         result = None
         with self.store.transaction() as conn:
             deferred_error = self._authorize_parent_in_transaction(
@@ -390,6 +437,29 @@ class PiggyService:
     def parent_settings(self, pin: str, now: datetime) -> dict:
         self._require_aware(now)
         current = now.astimezone(TAIPEI)
+        if not self._same_ledger():
+            deferred_error = self._authorize_parent(pin, current)
+            if deferred_error is not None:
+                raise deferred_error
+            with self.store.transaction() as conn:
+                theme = conn.execute(
+                    "SELECT value FROM settings WHERE key='theme'"
+                ).fetchone()
+                allowance = conn.execute(
+                    """
+                    SELECT id, amount, period, weekday, monthday,
+                           effective_date, created_at
+                    FROM allowance_rules
+                    ORDER BY effective_date DESC, id DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                return {
+                    "theme": theme["value"] if theme is not None else "melody",
+                    "allowance_rule": (
+                        dict(allowance) if allowance is not None else None
+                    ),
+                }
         result = None
         with self.store.transaction() as conn:
             deferred_error = self._authorize_parent_in_transaction(
@@ -656,10 +726,10 @@ class PiggyService:
                         "parent_note must contain 1 to 80 characters"
                     )
 
-                deferred_error = self._authorize_parent_in_transaction(
-                    conn,
-                    pin,
-                    current,
+                deferred_error = (
+                    self._authorize_parent_in_transaction(conn, pin, current)
+                    if self._same_ledger()
+                    else self._authorize_parent(pin, current)
                 )
                 if deferred_error is None:
                     pig_ids = json.loads(exchange["pig_ids"])
@@ -1146,7 +1216,7 @@ class PiggyService:
             current = now.astimezone(TAIPEI)
             return {
                 "revision": revision,
-                **meta(self.store.db_path.parent),
+                **meta(self.portrait_root, self.child_id),
                 "theme": (
                     theme_row["value"]
                     if theme_row is not None

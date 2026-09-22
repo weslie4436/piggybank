@@ -223,6 +223,43 @@ class TestDoorJoinAndPersonalAuth(VaultHttpTestCase):
         self.assertIn("active_pig", state)
         self.assertNotIn("child_token_hash", json.dumps(state))
 
+    def test_second_name_does_not_share_the_first_balance(self):
+        with self.store.transaction() as conn:
+            conn.execute(
+                "UPDATE pigs SET value=10336 WHERE status='growing'"
+            )
+        invite = self.keys.create_invite()
+        status, _, joined = self.json_request(
+            "POST",
+            f"/api/join?k={quote(invite)}",
+            {"display_name": "章晨風"},
+        )
+        self.assertEqual(200, status)
+        flower = joined["token"]
+        self.assertNotEqual(self.personal, flower)
+        self.assertEqual("章晨風", joined["reader"]["display_name"])
+
+        status, _, mine = self.json_request(
+            "GET",
+            f"/api/state?k={quote(self.personal)}",
+        )
+        status_flower, _, hers = self.json_request(
+            "GET",
+            f"/api/state?k={quote(flower)}",
+        )
+        self.assertEqual(200, status)
+        self.assertEqual(200, status_flower)
+        self.assertEqual(10336, mine["total"])
+        self.assertEqual(0, hers["total"])
+        self.assertNotEqual(mine["active_pig"]["id"], hers["active_pig"]["id"])
+
+        status, _, door = self.json_request(
+            "GET",
+            f"/api/door?k={quote(self.personal)}",
+        )
+        self.assertEqual(200, status)
+        self.assertEqual("小明", door["reader"]["display_name"])
+
     def test_unknown_door_key_is_unauthorized(self):
         cases = (
             ("GET", "/api/door?k=unknown-key", None),

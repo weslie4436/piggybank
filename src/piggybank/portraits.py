@@ -5,8 +5,25 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import Path
 
-_COVER_NAME = "child1.jpg"
-_BACKDROP_NAME = "child1.bg.jpg"
+def _safe_child(child_id: str) -> str:
+    name = str(child_id or "child1")
+    if (
+        not name
+        or name in {".", ".."}
+        or "/" in name
+        or "\\" in name
+        or ".." in name
+    ):
+        raise ValueError("invalid child")
+    return name
+
+
+def _cover_name(child_id: str) -> str:
+    return _safe_child(child_id) + ".jpg"
+
+
+def _backdrop_name(child_id: str) -> str:
+    return _safe_child(child_id) + ".bg.jpg"
 
 
 def _covers(data_root: Path) -> Path:
@@ -21,17 +38,17 @@ def _ready(path: Path) -> Path | None:
     return None
 
 
-def cover_file(data_root: Path) -> Path | None:
-    return _ready(data_root / "covers" / _COVER_NAME)
+def cover_file(data_root: Path, child_id: str = "child1") -> Path | None:
+    return _ready(data_root / "covers" / _cover_name(child_id))
 
 
-def backdrop_file(data_root: Path) -> Path | None:
-    return _ready(data_root / "covers" / _BACKDROP_NAME)
+def backdrop_file(data_root: Path, child_id: str = "child1") -> Path | None:
+    return _ready(data_root / "covers" / _backdrop_name(child_id))
 
 
-def meta(data_root: Path) -> dict:
-    cover = cover_file(data_root)
-    backdrop = backdrop_file(data_root)
+def meta(data_root: Path, child_id: str = "child1") -> dict:
+    cover = cover_file(data_root, child_id)
+    backdrop = backdrop_file(data_root, child_id)
     return {
         "has_cover": cover is not None,
         "cover_rev": int(cover.stat().st_mtime) if cover else 0,
@@ -64,7 +81,7 @@ def _write_jpeg(image, dest: Path) -> Path:
     return dest
 
 
-def save_cover_image(data_root: Path, blob: bytes) -> Path:
+def save_cover_image(data_root: Path, blob: bytes, child_id: str = "child1") -> Path:
     image = _open_rgb(blob)
     width, height = image.size
     side = min(width, height)
@@ -79,13 +96,13 @@ def save_cover_image(data_root: Path, blob: bytes) -> Path:
         )
     )
     image.thumbnail((1200, 1200))
-    return _write_jpeg(image, _covers(data_root) / _COVER_NAME)
+    return _write_jpeg(image, _covers(data_root) / _cover_name(child_id))
 
 
-def save_backdrop_image(data_root: Path, blob: bytes) -> Path:
+def save_backdrop_image(data_root: Path, blob: bytes, child_id: str = "child1") -> Path:
     image = _open_rgb(blob)
     width, height = image.size
     if width < 1 or height < 1:
         raise ValueError("empty image")
     image.thumbnail((1600, 1600))
-    return _write_jpeg(image, _covers(data_root) / _BACKDROP_NAME)
+    return _write_jpeg(image, _covers(data_root) / _backdrop_name(child_id))

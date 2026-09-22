@@ -114,6 +114,19 @@ SCHEMA_STATEMENTS = (
     CREATE INDEX IF NOT EXISTS exchanges_status
     ON exchanges(status, expires_at)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS children (
+      id TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      store_kind TEXT NOT NULL CHECK(store_kind IN ('legacy','account')),
+      created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS children_name
+    ON children(display_name)
+    """,
 )
 
 
