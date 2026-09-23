@@ -60,6 +60,7 @@
   const pendingClaim = Object.create(null);
   const COIN_MS = 460;
   const COIN_JUMP_MS = 900;
+  (new Image()).src = "./icons/coin-sheet.png";
   let allowTimer = 0;
   let allowServerNow = 0;
   let allowOrigin = 0;
@@ -1092,18 +1093,26 @@
       else chaseTotal(ovNum);
     }
     playCoinSound();
-    if (!ovNum || reduceMotion()) return;
+    if (!ovNum) return;
     moneyHold += 1;
     const coin = document.createElement("span");
     coin.className = "money-coin";
     const face = document.createElement("span");
     face.className = "money-coin-face";
     coin.appendChild(face);
-    coin.style.setProperty("--jx", ((moneyHold % 5) - 2) * 8 + "px");
-    const nb = ovNum.getBoundingClientRect();
-    coin.style.left = Math.round(nb.left - 42) + "px";
+    const digits = ovNum.querySelector(".money-digits") || ovNum;
+    const nb = digits.getBoundingClientRect();
+    const jx = ((moneyHold % 5) - 2) * 8;
+    const vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth || 0;
+    let left = Math.round(nb.left - 42 + jx);
+    if (vw) left = Math.min(Math.max(8, left), Math.max(8, Math.round(vw - 44)));
+    coin.style.left = left + "px";
     coin.style.top = Math.round(nb.top) + "px";
     document.body.appendChild(coin);
+    if (!reduceMotion()) {
+      void coin.offsetWidth;
+      coin.classList.add("is-on");
+    }
     window.setTimeout(function () {
       if (coin.parentNode) coin.remove();
       moneyHold = Math.max(0, moneyHold - 1);

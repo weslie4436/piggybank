@@ -92,16 +92,24 @@ button.money-hero {
   height: 36px;
   margin: 0;
   pointer-events: none;
-  z-index: 40;
+  z-index: 90;
+  opacity: 1;
+}
+.money-coin.is-on {
   animation: coin-rise 0.9s linear forwards;
 }
 .money-coin-face {
   display: block;
   width: 36px;
   height: 36px;
-  background: url("./icons/coin-sheet.png") 0 0 / 288px 36px no-repeat;
+  background-image: url("./icons/coin-sheet.png");
+  background-repeat: no-repeat;
+  background-size: 288px 36px;
+  background-position: 0 0;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.18));
+}
+.money-coin.is-on .money-coin-face {
   animation: coin-spin 0.9s steps(7) forwards;
 }
 @keyframes coin-spin {
@@ -109,11 +117,11 @@ button.money-hero {
   to { background-position: -252px 0; }
 }
 @keyframes coin-rise {
-  0% { transform: translate(var(--jx, 0px), 6px); opacity: 1; }
-  16% { transform: translate(var(--jx, 0px), -48px); opacity: 1; }
-  48% { transform: translate(var(--jx, 0px), -96px); opacity: 1; }
-  78% { transform: translate(var(--jx, 0px), -128px); opacity: 1; }
-  100% { transform: translate(var(--jx, 0px), -148px); opacity: 0; }
+  0% { transform: translateY(6px); opacity: 1; }
+  16% { transform: translateY(-48px); opacity: 1; }
+  48% { transform: translateY(-96px); opacity: 1; }
+  78% { transform: translateY(-128px); opacity: 1; }
+  100% { transform: translateY(-148px); opacity: 0; }
 }
 .gate-pad.is-sealed {
   pointer-events: none;
