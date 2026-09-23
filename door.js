@@ -1702,16 +1702,22 @@
         return;
       }
       if (!key) {
-        setBoot(false);
-        if (window.PIGGY_FORCE_INVITE || window.PIGGY_URL_KEY) showInvite();
-        else if (statusEl) statusEl.textContent = "請用邀請連結打開";
+        if (invitePage || window.PIGGY_FORCE_INVITE || window.PIGGY_URL_KEY) {
+          setBoot(false);
+          showInvite();
+        } else if (statusEl) {
+          statusEl.textContent = "請用邀請連結打開";
+        }
         return;
       }
       const x = await window.FamiGate.api("/api/door", key, { timeout: 20000 });
       if (!x.res || !x.res.ok || !x.j) {
         const badKey = !!(x.res && (x.res.status === 401 || (x.j && x.j.error === "unauthorized")));
         if (badKey) {
-          setBoot(false);
+          if (invitePage) {
+            setBoot(false);
+            showInvite();
+          }
           if (statusEl) statusEl.textContent = (x.j && x.j.message) || "請用邀請連結打開";
           return;
         }

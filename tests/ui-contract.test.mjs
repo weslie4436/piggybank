@@ -77,6 +77,7 @@ test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", ()
   assert.doesNotMatch(js, /\/api\/debug\/feed/);
   assert.match(js, /unauthorized/);
   assert.match(js, /status === 401/);
+  assert.match(js, /if \(invitePage\) \{\s+setBoot\(false\);\s+showInvite\(\);/);
 });
 
 test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs", () => {
