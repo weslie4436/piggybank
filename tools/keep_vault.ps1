@@ -3,6 +3,7 @@
 $ErrorActionPreference = "Continue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 . "F:\agent-ops\keep-vault-shutdown.ps1"
+. "F:\agent-ops\keep-vault-publish.ps1"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $Web = Join-Path $Root "web"
@@ -138,85 +139,24 @@ function Ensure-Tunnel {
   return ""
 }
 
-function Read-PublishedOrigin {
-  if (-not (Test-Path $ConfigJs)) { return "" }
-  $text = Get-Content -Path $ConfigJs -Raw -ErrorAction SilentlyContinue
-  $m = [regex]::Match($text, 'VAULT_ORIGIN\s*=\s*"(https://[^"]+)"')
-  if ($m.Success) { return $m.Groups[1].Value }
-  return ""
-}
-
-function Read-PushedOrigin {
-  $okFile = Join-Path $Logs "published_origin.txt"
-  if (-not (Test-Path $okFile)) { return "" }
-  return ((Get-Content -Path $okFile -Raw -ErrorAction SilentlyContinue) + "").Trim()
-}
-
 function Publish-Origin([string]$Origin) {
-  if (Test-SessionEnding) { return }
-  if (-not $Origin) { return }
-  if ((Read-PublishedOrigin) -eq $Origin -and (Read-PushedOrigin) -eq $Origin) { return }
-  if ((Read-PublishedOrigin) -ne $Origin) {
-    & $Python (Join-Path $Root "scripts\update_tunnel.py") $Origin
-    if ($LASTEXITCODE -ne 0) {
-      Write-Keep "update_tunnel failed"
-      return
-    }
-    $stamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    foreach ($name in @("index.html", "hey.html", "exchange.html")) {
-      $htmlPath = Join-Path $Web $name
-      if (Test-Path $htmlPath) {
-        $html = [IO.File]::ReadAllText($htmlPath)
-        $html = [regex]::Replace($html, 'src="./config\.js(?:\?v=\d+)?"', ('src="./config.js?v=' + $stamp + '"'))
-        [IO.File]::WriteAllText($htmlPath, $html)
-      }
-    }
+  $writeConfig = {
+    param($NextOrigin)
+    & $Python (Join-Path $Root "scripts\update_tunnel.py") $NextOrigin
   }
-  Write-Keep "publish origin $Origin"
-  $env:GH_PROMPT_DISABLED = "1"
-  $env:GIT_TERMINAL_PROMPT = "0"
-  Push-Location $Root
-  try {
-    git add -- web/config.js web/index.html web/hey.html web/exchange.html
-    $staged = @(git diff --cached --name-only)
-    if ($staged.Count -ge 1) {
-      git commit -m "Point the public door at the current vault tunnel."
-      if ($LASTEXITCODE -ne 0) {
-        Write-Keep "git commit failed"
-        return
-      }
-    }
-    git fetch origin main
-    $behind = 0
-    [void][int]::TryParse(@(git rev-list --count HEAD..origin/main)[0], [ref]$behind)
-    if ($behind -gt 0) {
-      git merge --no-edit origin/main
-      if ($LASTEXITCODE -ne 0) {
-        Write-Keep "git merge failed"
-        git merge --abort
-        return
-      }
-    }
-    git push origin main
-    if ($LASTEXITCODE -ne 0) {
-      Write-Keep "git push failed"
-      return
-    }
+  $afterPush = {
     $sha = git subtree split --prefix web
-    if ($LASTEXITCODE -ne 0 -or -not $sha) {
-      Write-Keep "subtree split failed"
-      return
-    }
+    if ($LASTEXITCODE -ne 0 -or -not $sha) { return $false }
     git push origin ($sha + ":gh-pages")
-    if ($LASTEXITCODE -ne 0) {
-      Write-Keep "gh-pages push failed"
-      return
-    }
-    [IO.File]::WriteAllText((Join-Path $Logs "published_origin.txt"), $Origin)
-    Write-Keep "published to GitHub Pages"
-  } finally {
-    Pop-Location
+    if ($LASTEXITCODE -ne 0) { return $false }
+    return $true
   }
+  Publish-VaultOrigin -Origin $Origin -Web $Web -ConfigJs $ConfigJs -Logs $Logs `
+    -HtmlFiles @("index.html", "hey.html", "exchange.html") `
+    -GitRoot $Root `
+    -GitAddPaths @("web/config.js", "web/index.html", "web/hey.html", "web/exchange.html") `
+    -WriteConfig $writeConfig `
+    -AfterPush $afterPush
 }
 
 Write-Keep "keep_vault start"
