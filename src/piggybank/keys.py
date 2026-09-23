@@ -184,11 +184,10 @@ class VaultKeys:
                 raise DomainError("invalid_invite", "邀請連結無效")
             existing = self._by_name(conn, name)
             if existing is not None:
-                conn.execute(
-                    "UPDATE children SET token_hash=? WHERE id=?",
-                    (personal_digest, existing["id"]),
+                raise DomainError(
+                    "already_joined",
+                    "這個名字已經有個人頁，請用原本的連結打開",
                 )
-                created_id = existing["id"]
             elif conn.execute("SELECT 1 FROM children LIMIT 1").fetchone() is None:
                 created_id = "child1"
                 conn.execute(

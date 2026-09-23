@@ -108,14 +108,18 @@ class TestVaultKeys(unittest.TestCase):
         )
         self.assertEqual({"kind": "invite"}, self.keys.door_for(invite))
 
-        again = self.keys.join(invite, "小明")
-        self.assertEqual(first["reader"]["id"], again["reader"]["id"])
-        self.assertIsNone(self.keys.door_for(first["token"]))
+        with self.assertRaises(DomainError) as raised:
+            self.keys.join(invite, "小明")
+        self.assertEqual("already_joined", raised.exception.code)
+        self.assertEqual(
+            "小明",
+            self.keys.door_for(first["token"])["reader"]["display_name"],
+        )
         self.assertEqual(
             "小花",
             self.keys.door_for(second["token"])["reader"]["display_name"],
         )
-        ming = self.keys.open_service(again["reader"]["id"])
+        ming = self.keys.open_service(first["reader"]["id"])
         flower = self.keys.open_service(second["reader"]["id"])
         ming.initialize(datetime.now(TAIPEI))
         with ming.store.transaction() as conn:
