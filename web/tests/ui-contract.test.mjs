@@ -169,11 +169,16 @@ test("exchange.html has PIN pad and confirm", () => {
 
 test("door.js pops a coin beside the balance and can claim again before the coin finishes", () => {
   const js = read("door.js");
+  const burst = js.slice(js.indexOf("function burstCoin"), js.indexOf("function setPigState"));
   assert.match(js, /function burstCoin/);
   assert.match(js, /function claimOnce/);
   assert.match(js, /money-coin/);
   assert.match(js, /playCoinSound/);
   assert.match(js, /claimSerial/);
+  assert.match(js, /coin-sheet\.png/);
+  assert.match(burst, /classList\.add\("is-on"\)/);
+  assert.match(burst, /visualViewport/);
+  assert.doesNotMatch(burst, /if \(!ovNum \|\| reduceMotion\(\)\) return;/);
   assert.doesNotMatch(js, /harvestPig|\/api\/harvest/);
   assert.doesNotMatch(js, /pig-coin is-dropping/);
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
@@ -181,10 +186,15 @@ test("door.js pops a coin beside the balance and can claim again before the coin
 
 test("piggy.css spins the coin sheet beside the balance", () => {
   const css = read("piggy.css");
+  const html = read("index.html");
   assert.match(css, /\.money-coin/);
   assert.match(css, /coin-sheet\.png/);
+  assert.match(css, /background-image:\s*url\("\.\/icons\/coin-sheet\.png"\)/);
+  assert.match(css, /\.money-coin\.is-on/);
   assert.match(css, /@keyframes coin-spin/);
   assert.match(css, /@keyframes coin-rise/);
+  assert.doesNotMatch(css, /translate\(var\(--jx/);
+  assert.match(html, /rel="preload"[^>]*coin-sheet\.png|coin-sheet\.png[^>]*rel="preload"/);
   assert.match(css, /\.pig-say \.play-bubble[\s\S]*var\(--rose/);
   assert.match(css, /\.pig-say\.is-bonus \.play-bubble::before/);
   assert.match(css, /\.pig-dot/);
