@@ -5,7 +5,7 @@ $Icon = Join-Path $Root "web\icons\piggy-v3.ico"
 if (-not (Test-Path -LiteralPath $Icon)) {
   throw "icon not found: $Icon"
 }
-$Pages = "https://theoldfathertw.github.io/piggybank/"
+$Pages = "https://weslie4436.github.io/piggybank/"
 $Edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
 if (-not (Test-Path -LiteralPath $Edge)) {
   $Edge = Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe"
@@ -24,14 +24,9 @@ function Write-PiggyShortcut([string]$LnkPath) {
   }
   $w = New-Object -ComObject WScript.Shell
   $lnk = $w.CreateShortcut($LnkPath)
-  $existingArgs = [string]$lnk.Arguments
-  $existingTarget = [string]$lnk.TargetPath
-  $keep = ($existingArgs -match 'theoldfathertw\.github\.io/piggybank') -or ($existingTarget -match 'theoldfathertw\.github\.io/piggybank')
-  if (-not $keep) {
-    $lnk.TargetPath = $Edge
-    $lnk.Arguments = "--app=$Pages"
-    $lnk.WorkingDirectory = Split-Path $Edge
-  }
+  $lnk.TargetPath = $Edge
+  $lnk.Arguments = "--app=$Pages"
+  $lnk.WorkingDirectory = Split-Path $Edge
   $lnk.Description = $Product
   $lnk.WindowStyle = 1
   $iconLocation = $Icon + ",0"
