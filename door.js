@@ -1726,7 +1726,23 @@
         }
         return;
       }
-      const x = await window.FamiGate.api("/api/door", key, { timeout: 20000 });
+      let x = await window.FamiGate.api("/api/door", key, { timeout: 20000 });
+      let storedPersonal = "";
+      if (!window.PIGGY_FORCE_INVITE) {
+        try { storedPersonal = localStorage.getItem("piggybank.viewKey") || ""; } catch (e) {}
+      }
+      if (
+        window.FamiGate &&
+        window.FamiGate.KEY_RE.test(storedPersonal) &&
+        storedPersonal !== key &&
+        (!x.res || !x.res.ok || !x.j || x.j.kind !== "personal")
+      ) {
+        const retry = await window.FamiGate.api("/api/door", storedPersonal, { timeout: 20000 });
+        if (retry.res && retry.res.ok && retry.j && retry.j.kind === "personal") {
+          key = storedPersonal;
+          x = retry;
+        }
+      }
       if (!x.res || !x.res.ok || !x.j) {
         const badKey = !!(x.res && (x.res.status === 401 || (x.j && x.j.error === "unauthorized")));
         if (badKey) {

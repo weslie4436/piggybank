@@ -52,8 +52,7 @@
   var token = fromUrl || (KEY_RE.test(stored) ? stored : "") || (KEY_RE.test(cookie) ? cookie : "");
   window.PIGGY_URL_KEY = fromUrl;
   window.PIGGY_VIEW_KEY = token;
-  if (token) {
-    try { localStorage.setItem(viewKey, token); } catch (e) {}
+  if (token && !fromUrl) {
     if (typeof navigator.standalone === "boolean" && !navigator.standalone) {
       var pin = location.pathname + "?k=" + encodeURIComponent(token) + "#k=" + encodeURIComponent(token);
       if (location.pathname + location.search + location.hash !== pin) {
@@ -212,6 +211,6 @@
   <button type="button" class="invite-go" id="home-installed">我已加入</button>
 </div>
 <script src="./gate.js?v=4"></script>
-<script src="./door.js?v=39"></script>
+<script src="./door.js?v=40"></script>
 </body>
 </html>
