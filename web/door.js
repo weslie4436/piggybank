@@ -46,6 +46,7 @@
   let ready = false;
   let booting = false;
   let bootTimer = 0;
+  let hiddenAt = 0;
   let snapshot = null;
   let exStage = "";
   let exAmount = 0;
@@ -793,10 +794,16 @@
     }, 280);
   }
 
+  function showBlobs(on) {
+    const blobs = document.querySelector(".blobs");
+    if (blobs) blobs.hidden = !on;
+  }
+
   function setBoot(on, text) {
     if (!hall) return;
     hall.classList.toggle("is-booting", !!on);
     hall.classList.toggle("with-feed", true);
+    if (on) showBlobs(true);
     if (statusEl && text != null) statusEl.textContent = text;
   }
 
@@ -1956,8 +1963,33 @@
   if (askOk) askOk.addEventListener("click", closeAsk);
 
   window.addEventListener("resize", layoutStage);
+  async function refreshAfterResume() {
+    if (!ready || busy || booting) return;
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    if (away < 1200) {
+      loadState(false);
+      return;
+    }
+    setBoot(true, "正在連接小豬銀行…");
+    try {
+      await loadState(false);
+    } finally {
+      setBoot(false, "");
+      if (statusEl) statusEl.textContent = "";
+      showBlobs(false);
+    }
+  }
+
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && ready && !busy) loadState(false);
+    if (document.visibilityState === "hidden") {
+      hiddenAt = Date.now();
+      return;
+    }
+    if (document.visibilityState === "visible") refreshAfterResume();
+  });
+  window.addEventListener("pageshow", function (ev) {
+    if (ev.persisted) refreshAfterResume();
   });
   boot();
 })();

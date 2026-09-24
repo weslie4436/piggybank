@@ -7,6 +7,33 @@
   display: none !important;
 }
 
+.boot-mark,
+.boot-wait {
+  display: none;
+}
+.hall.is-booting .profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hall.is-booting .boot-mark {
+  display: block;
+  width: min(240px, 58vw);
+  margin: 0 auto 6px;
+}
+.hall.is-booting .boot-pig {
+  display: block;
+  width: 100%;
+  height: auto;
+  transform-origin: 50% 88%;
+  animation: piggy-breathe 3.8s ease-in-out infinite;
+}
+.hall.is-booting .boot-wait {
+  display: block;
+  width: min(220px, 64vw);
+  margin: 18px auto 0;
+}
+
 .invite-wait-bar {
   position: relative;
   overflow: hidden;
@@ -615,6 +642,7 @@ button.news-row:active { background: #f6f6f6; }
   .money-coin,
   .money-coin-face,
   .claim-go.is-ready:not(:disabled) .ins-ring,
+  .boot-pig,
   .invite-wait-bar::after,
   .pig-say.is-bonus .play-bubble::before {
     animation: none !important;
