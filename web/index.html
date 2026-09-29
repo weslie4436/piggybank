@@ -24,6 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="./app.css?v=4"/>
 <link rel="stylesheet" href="./piggy.css?v=28"/>
+<link rel="stylesheet" href="./adventure.css?v=1"/>
 <link rel="preload" href="./icons/coin-sheet.png" as="image"/>
 <script src="./config.js?v=1790090522"></script>
 <script>
@@ -153,6 +154,11 @@
       <button type="button" class="money-hero" id="ovTotal" aria-label="消費">
         <span class="money-num" id="ovNum"><span class="money-digits">0</span></span>
       </button>
+      <button type="button" class="adventure-launch" id="adventure-open">
+        <span class="adventure-launch-mark" aria-hidden="true">✦</span>
+        <span><strong>森林尋寶</strong><small>今天有新冒險</small></span>
+        <span class="adventure-launch-arrow" aria-hidden="true">›</span>
+      </button>
     </section>
     </div>
     <div class="pig-page" data-page="ledger">
@@ -165,6 +171,43 @@
     </div>
   </div>
 </div>
+<section class="adventure-screen" id="adventure-screen" hidden aria-label="森林尋寶冒險">
+  <header class="adventure-topbar">
+    <button type="button" class="adventure-back" id="adventure-close" aria-label="返回銀行">‹</button>
+    <div class="adventure-title"><span>今日冒險</span><strong>森林尋寶</strong></div>
+    <div class="adventure-meter"><span id="adventure-progress">0 / 10 題</span><i><b id="adventure-progress-fill"></b></i></div>
+    <button type="button" class="adventure-sound" id="adventure-sound" aria-label="音效開啟">♫</button>
+  </header>
+  <div class="adventure-layout">
+    <section class="adventure-map-panel" aria-label="探索地圖">
+      <div class="adventure-map-heading"><strong>選個地方找寶物</strong><span id="adventure-badge-total">徽章碎片 0</span></div>
+      <div class="adventure-map" id="adventure-map">
+        <div class="adventure-path adventure-path-a" aria-hidden="true"></div>
+        <div class="adventure-path adventure-path-b" aria-hidden="true"></div>
+        <button class="adventure-poi" data-poi="0" style="--x:16%;--y:25%"><span class="poi-icon">♧</span><span>樹根空地</span><i></i></button>
+        <button class="adventure-poi" data-poi="1" style="--x:51%;--y:19%"><span class="poi-icon">◉</span><span>石門洞窟</span><i></i></button>
+        <button class="adventure-poi" data-poi="2" style="--x:82%;--y:36%"><span class="poi-icon">✿</span><span>莓果小徑</span><i></i></button>
+        <button class="adventure-poi" data-poi="3" style="--x:34%;--y:70%"><span class="poi-icon">≈</span><span>月亮池</span><i></i></button>
+        <button class="adventure-poi" data-poi="4" style="--x:75%;--y:77%"><span class="poi-icon">⌂</span><span>樹冠高台</span><i></i></button>
+        <div class="adventure-pig-marker"><img src="./icons/pig.png?v=3" alt="小豬冒險隊長"/></div>
+      </div>
+      <div class="adventure-collection" id="adventure-collection"></div>
+    </section>
+    <section class="adventure-scene" id="adventure-scene" aria-live="polite">
+      <div class="adventure-scene-sky" aria-hidden="true"></div>
+      <div class="adventure-encounter" id="adventure-encounter">
+        <div class="adventure-creature-wrap"><img class="adventure-creature" src="./icons/adventure-mossling.svg?v=1" alt="森林苔苔怪"/><span class="creature-name">苔苔怪</span><div class="creature-health"><i><b id="adventure-creature-health"></b></i><small id="adventure-creature-hp">5 / 5</small></div></div>
+        <div class="adventure-speech" id="adventure-speech">森林裡傳來窸窣聲，選一個地方看看吧！</div>
+      </div>
+      <div class="adventure-question" id="adventure-question">
+        <p class="adventure-question-kicker">冒險隊長，準備好了嗎？</p>
+        <h2>地圖上有好多發亮的地方</h2>
+        <p>挑一個 POI，看看小豬會發現什麼。</p>
+      </div>
+      <div class="adventure-result" id="adventure-result" hidden></div>
+    </section>
+  </div>
+</section>
 <aside class="photo-rail" id="photo-rail" hidden aria-label="撲滿操作"></aside>
 <input id="cover-input" type="file" accept="image/*" hidden/>
 <input id="backdrop-input" type="file" accept="image/*" hidden/>
@@ -211,6 +254,7 @@
   <button type="button" class="invite-go" id="home-installed">我已加入</button>
 </div>
 <script src="./gate.js?v=4"></script>
-<script src="./door.js?v=40"></script>
+<script src="./door.js?v=41"></script>
+<script src="./adventure.js?v=1"></script>
 </body>
 </html>

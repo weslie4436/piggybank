@@ -20,6 +20,10 @@ EXPECTED_TABLES = (
     "pin_attempts",
     "children",
     "grants",
+    "adventure_questions",
+    "adventure_pois",
+    "adventure_badges",
+    "adventure_days",
 )
 
 EXPECTED_INDEXES = (

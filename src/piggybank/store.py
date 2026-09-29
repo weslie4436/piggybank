@@ -137,6 +137,42 @@ SCHEMA_STATEMENTS = (
     CREATE UNIQUE INDEX IF NOT EXISTS children_name
     ON children(display_name)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_questions (
+      day_key TEXT NOT NULL,
+      question_no INTEGER NOT NULL CHECK(question_no BETWEEN 0 AND 9),
+      poi_no INTEGER NOT NULL CHECK(poi_no BETWEEN 0 AND 4),
+      prompt TEXT NOT NULL,
+      options TEXT NOT NULL,
+      answer INTEGER NOT NULL,
+      revealed_at TEXT,
+      solved_at TEXT,
+      PRIMARY KEY(day_key, question_no)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_pois (
+      day_key TEXT NOT NULL,
+      poi_no INTEGER NOT NULL CHECK(poi_no BETWEEN 0 AND 4),
+      cleared_at TEXT,
+      PRIMARY KEY(day_key, poi_no)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_badges (
+      badge_id TEXT NOT NULL,
+      piece TEXT NOT NULL CHECK(piece IN ('left','right')),
+      count INTEGER NOT NULL DEFAULT 0 CHECK(count >= 0),
+      PRIMARY KEY(badge_id, piece)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_days (
+      day_key TEXT PRIMARY KEY,
+      reward_grant_id TEXT,
+      completed_at TEXT
+    )
+    """,
 )
 
 
