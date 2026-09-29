@@ -2007,5 +2007,8 @@
   window.addEventListener("pageshow", function (ev) {
     if (ev.persisted) refreshAfterResume();
   });
+  window.addEventListener("piggy:adventure-reward", function () {
+    if (ready) loadState(true);
+  });
   boot();
 })();
