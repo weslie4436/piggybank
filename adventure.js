@@ -20,6 +20,18 @@
   const CARD_HOVER_TWEEN_SEC = 0.12;
   const CARD_LAYOUT_TWEEN_SEC = 0.25;
   const CUBIC_OUT = "cubic-bezier(0.33, 1, 0.68, 1)";
+  // BattleCharacterSprite / PlayComboPresentationSettings @ 177ef059
+  const HIT_SHAKE_INTENSITY_PX = 5;
+  const HIT_SHAKE_PUNCHES = 5;
+  const HIT_SHAKE_STEP_SEC = 0.032;
+  const DAMAGE_FLASH_CYCLES = 3;
+  const DAMAGE_FLASH_STEP_SEC = 0.05;
+  const SCREEN_SHAKE_AMPLITUDE_PX = 10;
+  const SCREEN_SHAKE_PUNCHES = 5;
+  const SCREEN_SHAKE_STEP_SEC = 0.04;
+  const SLAM_PUNCH_SCALE = 1.06;
+  const SLAM_PUNCH_DURATION_SEC = 0.1;
+  const DEATH_FADE_SEC = 0.35;
   let state = null;
   let sending = false;
   let soundOn = true;
@@ -47,6 +59,83 @@
     try {
       if (navigator.vibrate) navigator.vibrate(pattern);
     } catch (_) { /* desktop / iOS 可能沒有 */ }
+  }
+
+  function sleep(sec) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, reduceMotion() ? 0 : Math.round(sec * 1000));
+    });
+  }
+
+  function hitBuzz() {
+    const on = Math.round(HIT_SHAKE_STEP_SEC * 1000);
+    const pattern = [];
+    for (let i = 0; i < HIT_SHAKE_PUNCHES; i++) {
+      if (i) pattern.push(12);
+      pattern.push(on);
+    }
+    buzz(pattern);
+  }
+
+  async function punchShake(el, intensity, punches, stepSec) {
+    if (!el || reduceMotion()) return;
+    const prev = el.style.transform;
+    for (let i = 0; i < punches; i++) {
+      const x = (Math.random() * 2 - 1) * intensity;
+      const y = (Math.random() * 2 - 1) * intensity;
+      el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px)";
+      await sleep(stepSec);
+    }
+    el.style.transform = prev;
+  }
+
+  async function damageFlash(el) {
+    if (!el || reduceMotion()) return;
+    for (let i = 0; i < DAMAGE_FLASH_CYCLES; i++) {
+      el.classList.add("is-flash");
+      await sleep(DAMAGE_FLASH_STEP_SEC);
+      el.classList.remove("is-flash");
+      await sleep(DAMAGE_FLASH_STEP_SEC);
+    }
+  }
+
+  async function slamPunch(card) {
+    if (!card) return;
+    if (reduceMotion()) {
+      card.style.visibility = "hidden";
+      return;
+    }
+    card.style.transition = "transform " + (SLAM_PUNCH_DURATION_SEC * 0.55) + "s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+    card.style.transform = "rotate(0deg) scale(" + SLAM_PUNCH_SCALE + ")";
+    await sleep(SLAM_PUNCH_DURATION_SEC * 0.55);
+    card.style.transition = "transform " + (SLAM_PUNCH_DURATION_SEC * 0.45) + "s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+    card.style.transform = "rotate(0deg) scale(" + CARD_DRAG_SCALE + ")";
+    await sleep(SLAM_PUNCH_DURATION_SEC * 0.45);
+    card.style.visibility = "hidden";
+  }
+
+  async function playHitReact(body) {
+    hitBuzz();
+    await Promise.all([
+      punchShake(body, HIT_SHAKE_INTENSITY_PX, HIT_SHAKE_PUNCHES, HIT_SHAKE_STEP_SEC),
+      damageFlash(body),
+    ]);
+  }
+
+  async function playScreenShake() {
+    await punchShake(
+      document.getElementById("battle-board"),
+      SCREEN_SHAKE_AMPLITUDE_PX,
+      SCREEN_SHAKE_PUNCHES,
+      SCREEN_SHAKE_STEP_SEC
+    );
+  }
+
+  async function deathFade(unit) {
+    if (!unit) return;
+    unit.style.transition = reduceMotion() ? "none" : "opacity " + DEATH_FADE_SEC + "s ease";
+    unit.style.opacity = "0";
+    await sleep(DEATH_FADE_SEC);
   }
 
   function cue(kind) {
@@ -134,6 +223,7 @@
     card.classList.remove("is-hover", "is-dragging");
     card.style.position = "";
     card.style.top = "";
+    card.style.visibility = "";
     card.style.width = rest.width || "";
     card.style.height = rest.height || "";
     card.style.zIndex = rest.z || "";
@@ -483,12 +573,10 @@
       });
       if (!outcome.correct) {
         cue("wrong");
-        buzz([20, 40, 20]);
         hovered = null;
         tweenToRest(card);
-        document.getElementById("player-hp").classList.remove("is-hit");
-        void document.getElementById("player-hp").offsetWidth;
-        document.getElementById("player-hp").classList.add("is-hit");
+        const hp = document.getElementById("player-hp");
+        await playHitReact(hp);
         state = await api("/api/adventure");
         paintHp(state.player_hp, state.player_hp_max || 5);
         if (outcome.game_over || state.game_over) {
@@ -499,10 +587,12 @@
         return;
       }
       cue(outcome.defeated ? "boss" : "correct");
-      buzz(outcome.defeated ? 30 : 18);
-      unit.classList.add("is-hit");
+      await slamPunch(card);
+      const body = unit.querySelector(".enemy-placeholder") || unit;
+      await Promise.all([playHitReact(body), playScreenShake()]);
       if (outcome.defeated) {
         window.dispatchEvent(new Event("piggy:adventure-reward"));
+        await deathFade(unit);
       }
       state = await api("/api/adventure");
       draw();
