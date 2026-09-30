@@ -286,8 +286,14 @@ test("forest battle board drops the room map and splits portrait from landscape"
   assert.match(js, /HAND_DRAG_THRESHOLD_PX = 6/);
   assert.match(js, /HAND_HOVER_LIFT_RATIO/);
   assert.match(js, /navigator.vibrate/);
+  assert.match(js, /HIT_SHAKE_INTENSITY_PX = 5/);
+  assert.match(js, /HIT_SHAKE_PUNCHES = 5/);
+  assert.match(js, /SCREEN_SHAKE_AMPLITUDE_PX = 10/);
+  assert.match(js, /DAMAGE_FLASH_CYCLES = 3/);
+  assert.match(js, /DEATH_FADE_SEC = 0.35/);
   assert.match(html, /id="target-arrow"/);
   assert.match(css, /\.answer-card\.is-hover/);
+  assert.match(css, /\.enemy-placeholder\.is-flash/);
 });
 
 test("pages link apple-touch-icon and default melody theme", () => {

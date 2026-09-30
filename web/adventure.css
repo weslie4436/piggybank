@@ -34,7 +34,7 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 .player-hp { display:flex;gap:5px;margin-left:auto; }
 .player-hp i { width:14px;height:14px;border-radius:4px;background:#3a303f;box-shadow:inset 0 0 0 1px #5a4a58; }
 .player-hp i.is-on { background:#e45d7a;box-shadow:none; }
-.player-hp.is-hit { animation:player-hit .28s ease-out; }
+.player-hp.is-flash { filter:brightness(1.45); }
 .adventure-progress-group { display:flex;align-items:center;gap:10px; }
 .adventure-coins { display:flex;align-items:center;gap:5px;color:#f3ddb3;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
 .adventure-coins img { width:20px;height:20px;object-fit:contain; }
@@ -46,16 +46,21 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 }
 .enemy-unit { position:relative;display:flex;flex-direction:column;align-items:center;width:min(180px,28vw);transition:transform .18s ease; }
 .enemy-unit.is-target { transform:translateY(-8px) scale(1.04); }
-.enemy-unit.is-hit { animation:enemy-hit .32s ease-out; }
 .enemy-highlight {
   display:none;position:absolute;inset:0 auto auto 0;width:100%;aspect-ratio:3/5;border-radius:18px;
   box-shadow:0 0 0 4px #ff4d4d, 0 0 18px #ff4d4d88;pointer-events:none;
 }
 .enemy-unit.is-target .enemy-highlight { display:block; }
 .enemy-placeholder {
+  position:relative;overflow:hidden;
   width:100%;aspect-ratio:3/5;border-radius:18px 18px 22px 22px;
   background:linear-gradient(180deg,#6d4d63,#3e2a38);
   box-shadow:0 10px 0 #120c14;
+}
+.enemy-placeholder.is-flash { filter:brightness(1.45); }
+.enemy-placeholder.is-flash::after {
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:rgba(255,89,89,.48);pointer-events:none;
 }
 .enemy-unit.is-elite .enemy-placeholder { background:linear-gradient(180deg,#8a5a3a,#4a2c22);width:108%; }
 .enemy-prompt {
@@ -99,9 +104,6 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 .battle-banner p { margin:0;color:#74656c;font-size:14px; }
 .adventure-next { margin-top:8px;padding:10px 16px;border:0;border-radius:14px;background:#f3dfeb;color:#854b6d;font-weight:700;cursor:pointer; }
 
-@keyframes enemy-hit { 30% { transform:translateX(-8px) rotate(-6deg);filter:brightness(1.3);} 65% { transform:translateX(6px) rotate(5deg);} }
-@keyframes player-hit { 40% { transform:translateX(-4px);} }
-
 @media (orientation: portrait) {
   .adventure-topbar { flex-basis:56px;gap:8px;padding:0 10px; }
   .adventure-title { min-width:auto; }
@@ -125,7 +127,6 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .enemy-unit.is-hit,.player-hp.is-hit { animation:none; }
   .enemy-unit { transition:none; }
   .answer-card { transition:none; }
 }
