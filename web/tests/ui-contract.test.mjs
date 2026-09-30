@@ -291,6 +291,7 @@ test("forest battle board drops the room map and splits portrait from landscape"
   assert.match(js, /SCREEN_SHAKE_AMPLITUDE_PX = 10/);
   assert.match(js, /DAMAGE_FLASH_CYCLES = 3/);
   assert.match(js, /DEATH_FADE_SEC = 0.35/);
+  assert.match(js, /timeout: 15000/);
   assert.match(html, /id="target-arrow"/);
   assert.match(css, /\.answer-card\.is-hover/);
   assert.match(css, /\.enemy-placeholder\.is-flash/);
