@@ -155,6 +155,10 @@ SCHEMA_STATEMENTS = (
       day_key TEXT NOT NULL,
       poi_no INTEGER NOT NULL CHECK(poi_no BETWEEN 0 AND 4),
       cleared_at TEXT,
+      enemy_rewarded_at TEXT,
+      chest_opened_at TEXT,
+      enemy_reward INTEGER NOT NULL DEFAULT 0 CHECK(enemy_reward BETWEEN 0 AND 6),
+      chest_reward INTEGER NOT NULL DEFAULT 0 CHECK(chest_reward BETWEEN 0 AND 5),
       PRIMARY KEY(day_key, poi_no)
     )
     """,
@@ -171,6 +175,31 @@ SCHEMA_STATEMENTS = (
       day_key TEXT PRIMARY KEY,
       reward_grant_id TEXT,
       completed_at TEXT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_monsters (
+      day_key TEXT NOT NULL,
+      monster_id TEXT NOT NULL,
+      wave_no INTEGER NOT NULL CHECK(wave_no >= 0),
+      slot_no INTEGER NOT NULL CHECK(slot_no >= 0),
+      is_elite INTEGER NOT NULL CHECK(is_elite IN (0, 1)),
+      hp_max INTEGER NOT NULL CHECK(hp_max >= 1),
+      hits INTEGER NOT NULL DEFAULT 0 CHECK(hits >= 0),
+      prompts TEXT NOT NULL,
+      answers TEXT NOT NULL,
+      reward INTEGER NOT NULL CHECK(reward >= 1),
+      solved_at TEXT,
+      grant_id TEXT,
+      PRIMARY KEY (day_key, monster_id)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS adventure_wave_hands (
+      day_key TEXT NOT NULL,
+      wave_no INTEGER NOT NULL,
+      cards TEXT NOT NULL,
+      PRIMARY KEY (day_key, wave_no)
     )
     """,
 )
@@ -195,6 +224,58 @@ class Store:
         try:
             for statement in SCHEMA_STATEMENTS:
                 conn.execute(statement)
+            poi_columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(adventure_pois)")
+            }
+            if "enemy_rewarded_at" not in poi_columns:
+                conn.execute("ALTER TABLE adventure_pois ADD COLUMN enemy_rewarded_at TEXT")
+            if "chest_opened_at" not in poi_columns:
+                conn.execute("ALTER TABLE adventure_pois ADD COLUMN chest_opened_at TEXT")
+            if "enemy_reward" not in poi_columns:
+                conn.execute("ALTER TABLE adventure_pois ADD COLUMN enemy_reward INTEGER NOT NULL DEFAULT 0 CHECK(enemy_reward BETWEEN 0 AND 6)")
+            if "chest_reward" not in poi_columns:
+                conn.execute("ALTER TABLE adventure_pois ADD COLUMN chest_reward INTEGER NOT NULL DEFAULT 0 CHECK(chest_reward BETWEEN 0 AND 5)")
+            poi_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='adventure_pois'"
+            ).fetchone()["sql"]
+            if "enemy_reward BETWEEN 0 AND 3" in poi_sql:
+                conn.execute("ALTER TABLE adventure_pois RENAME TO adventure_pois_old")
+                conn.execute(
+                    """CREATE TABLE adventure_pois (
+                      day_key TEXT NOT NULL,
+                      poi_no INTEGER NOT NULL CHECK(poi_no BETWEEN 0 AND 4),
+                      cleared_at TEXT,
+                      enemy_rewarded_at TEXT,
+                      chest_opened_at TEXT,
+                      enemy_reward INTEGER NOT NULL DEFAULT 0 CHECK(enemy_reward BETWEEN 0 AND 6),
+                      chest_reward INTEGER NOT NULL DEFAULT 0 CHECK(chest_reward BETWEEN 0 AND 5),
+                      PRIMARY KEY(day_key, poi_no)
+                    )"""
+                )
+                conn.execute(
+                    """INSERT INTO adventure_pois
+                    (day_key, poi_no, cleared_at, enemy_rewarded_at, chest_opened_at, enemy_reward, chest_reward)
+                    SELECT day_key, poi_no, cleared_at, enemy_rewarded_at, chest_opened_at, enemy_reward, chest_reward
+                    FROM adventure_pois_old"""
+                )
+                conn.execute("DROP TABLE adventure_pois_old")
+            day_columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(adventure_days)")
+            }
+            if "wave_count" not in day_columns:
+                conn.execute(
+                    "ALTER TABLE adventure_days ADD COLUMN wave_count INTEGER NOT NULL DEFAULT 3"
+                )
+            if "loot_total" not in day_columns:
+                conn.execute(
+                    "ALTER TABLE adventure_days ADD COLUMN loot_total INTEGER NOT NULL DEFAULT 0"
+                )
+            if "player_hp" not in day_columns:
+                conn.execute(
+                    "ALTER TABLE adventure_days ADD COLUMN player_hp INTEGER NOT NULL DEFAULT 5"
+                )
             conn.execute(
                 """
                 INSERT OR IGNORE INTO settings (key, value)

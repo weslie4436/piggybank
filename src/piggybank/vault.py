@@ -387,15 +387,6 @@ def make_server(
                 return self._account().state(datetime.now(TAIPEI))
             if path == "/api/adventure":
                 return self._account().adventure_state(datetime.now(TAIPEI))
-            if path == "/api/adventure/question":
-                try:
-                    poi_no = int(self._query("poi"))
-                    slot = int(self._query("slot"))
-                except ValueError as error:
-                    raise ValueError("poi and slot must be integers") from error
-                return self._account().adventure_question(
-                    poi_no, slot, datetime.now(TAIPEI)
-                )
             if path == "/api/ledger":
                 account = self._account()
                 query = parse_qs(
@@ -484,10 +475,12 @@ def make_server(
                     self._string_field(payload, "period_key"),
                     now,
                 )
-            if path == "/api/adventure/answer":
+            if path == "/api/adventure/enter":
+                return self._account().enter_adventure(datetime.now(TAIPEI))
+            if path == "/api/adventure/play":
                 payload = self._read_json()
-                return self._account().answer_adventure_question(
-                    self._integer_field(payload, "question_no"),
+                return self._account().play_adventure_card(
+                    self._string_field(payload, "monster_id"),
                     self._integer_field(payload, "answer"),
                     datetime.now(TAIPEI),
                 )

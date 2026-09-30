@@ -24,6 +24,8 @@ EXPECTED_TABLES = (
     "adventure_pois",
     "adventure_badges",
     "adventure_days",
+    "adventure_monsters",
+    "adventure_wave_hands",
 )
 
 EXPECTED_INDEXES = (

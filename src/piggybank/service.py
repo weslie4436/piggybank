@@ -21,6 +21,9 @@ from piggybank.store import Store
 DEFAULT_ALLOWANCE_AMOUNT = 30
 DEFAULT_GUIDE_FOOT = 88.0
 DEFAULT_GUIDE_COIN = 22.0
+ADVENTURE_DAILY_REWARD_LIMIT = 30
+ADVENTURE_LOOT_MIN = 18
+PLAYER_HP_MAX = 5
 
 
 def _clamp_guide(value: object) -> float:
@@ -62,245 +65,348 @@ class PiggyService:
     def _adventure_day_key(now: datetime) -> str:
         return (now.astimezone(TAIPEI) - timedelta(hours=16)).date().isoformat()
 
-    @staticmethod
-    def _adventure_questions(child_id: str, day_key: str) -> list[dict]:
-        rng = random.Random(f"{child_id}:{day_key}:piggy-adventure-v1")
-        result = []
-        for index in range(10):
-            operation = index % 3
-            if operation == 0:
-                left, right = rng.randint(3, 19), rng.randint(2, 15)
-                answer = left + right
-                prompt = f"{left} + {right} 等於多少？"
-            elif operation == 1:
-                left, right = rng.randint(8, 30), rng.randint(2, 7)
-                if right > left:
-                    left, right = right, left
-                answer = left - right
-                prompt = f"{left} − {right} 等於多少？"
-            else:
-                left, right = rng.randint(2, 9), rng.randint(2, 5)
-                answer = left * right
-                prompt = f"{left} × {right} 等於多少？"
-            choices = {answer}
-            while len(choices) < 3:
-                choices.add(max(0, answer + rng.choice((-9, -5, -2, 2, 4, 7))))
-            options = list(choices)
-            rng.shuffle(options)
-            result.append({
-                "day_key": day_key,
-                "question_no": index,
-                "poi_no": index // 2,
-                "prompt": prompt,
-                "options": json.dumps(options),
-                "answer": answer,
-            })
-        return result
-
     def adventure_state(self, now: datetime) -> dict:
         self._require_aware(now)
         self.store.initialize()
         day_key = self._adventure_day_key(now)
-        timestamp = now.astimezone(TAIPEI).isoformat()
         with self.store.transaction() as conn:
-            exists = conn.execute(
-                "SELECT 1 FROM adventure_questions WHERE day_key=? LIMIT 1",
-                (day_key,),
-            ).fetchone()
-            if exists is None:
-                conn.executemany(
-                    """INSERT INTO adventure_questions
-                    (day_key, question_no, poi_no, prompt, options, answer)
-                    VALUES (:day_key, :question_no, :poi_no, :prompt, :options, :answer)""",
-                    self._adventure_questions(self.child_id, day_key),
-                )
-                conn.executemany(
-                    "INSERT INTO adventure_pois (day_key, poi_no) VALUES (?, ?)",
-                    [(day_key, i) for i in range(5)],
-                )
-                Store.bump_revision(conn)
-            day = conn.execute(
-                "SELECT * FROM adventure_days WHERE day_key=?", (day_key,)
-            ).fetchone()
-            questions = list(conn.execute(
-                "SELECT question_no, revealed_at, solved_at FROM adventure_questions WHERE day_key=? ORDER BY question_no",
-                (day_key,),
-            ))
-            pois = list(conn.execute(
-                "SELECT poi_no, cleared_at FROM adventure_pois WHERE day_key=? ORDER BY poi_no",
-                (day_key,),
-            ))
-            badges = {
-                row["badge_id"]: {
-                    "left": int(row["left_count"] or 0),
-                    "right": int(row["right_count"] or 0),
-                }
-                for row in conn.execute(
-                    """SELECT badge_id,
-                    SUM(CASE WHEN piece='left' THEN count ELSE 0 END) AS left_count,
-                    SUM(CASE WHEN piece='right' THEN count ELSE 0 END) AS right_count
-                    FROM adventure_badges GROUP BY badge_id"""
-                )
-            }
-            return {
-                "day_key": day_key,
-                "question_limit": 10,
-                "questions_revealed": sum(q["revealed_at"] is not None for q in questions),
-                "correct_count": sum(q["solved_at"] is not None for q in questions),
-                "reward_ready": bool(day and day["reward_grant_id"]),
-                "reward_claimed": bool(day and day["reward_grant_id"] and conn.execute(
-                    "SELECT claimed_at FROM grants WHERE id=?",
-                    (day["reward_grant_id"],),
-                ).fetchone()["claimed_at"]),
-                "reward_grant_id": day["reward_grant_id"] if day else None,
-                "pois": [
-                    {
-                        "poi_no": int(p["poi_no"]),
-                        "revealed": any(q["revealed_at"] is not None and q["question_no"] // 2 == p["poi_no"] for q in questions),
-                        "cleared": p["cleared_at"] is not None,
-                    }
-                    for p in pois
-                ],
-                "questions": [
-                    {
-                        "question_no": int(q["question_no"]),
-                        "revealed": q["revealed_at"] is not None,
-                        "solved": q["solved_at"] is not None,
-                    }
-                    for q in questions
-                ],
-                "badges": badges,
-                "boss_defeated": bool(day and day["completed_at"]),
-            }
+            self._ensure_encounter(conn, day_key)
+            return self._public_adventure(conn, day_key)
 
-    def adventure_question(self, poi_no: int, slot: int, now: datetime) -> dict:
+    def enter_adventure(self, now: datetime) -> dict:
         self._require_aware(now)
-        if isinstance(poi_no, bool) or poi_no not in range(5) or isinstance(slot, bool) or slot not in (0, 1):
-            raise ValueError("invalid point of interest")
-        state = self.adventure_state(now)
-        day_key = state["day_key"]
-        question_no = poi_no * 2 + slot
-        timestamp = now.astimezone(TAIPEI).isoformat()
+        self.store.initialize()
+        day_key = self._adventure_day_key(now)
         with self.store.transaction() as conn:
-            row = conn.execute(
-                "SELECT * FROM adventure_questions WHERE day_key=? AND question_no=?",
-                (day_key, question_no),
-            ).fetchone()
-            if slot == 1:
-                first = conn.execute(
-                    "SELECT solved_at FROM adventure_questions WHERE day_key=? AND question_no=?",
-                    (day_key, question_no - 1),
-                ).fetchone()
-                if first is None or first["solved_at"] is None:
-                    raise DomainError("question_locked", "先完成這個地點的第一個挑戰")
-            if row["revealed_at"] is None:
-                revealed = conn.execute(
-                    "SELECT COUNT(*) AS n FROM adventure_questions WHERE day_key=? AND revealed_at IS NOT NULL",
-                    (day_key,),
-                ).fetchone()["n"]
-                if int(revealed) >= 10:
-                    raise DomainError("daily_limit", "今天的探索題目已經看完了")
-                conn.execute(
-                    "UPDATE adventure_questions SET revealed_at=? WHERE day_key=? AND question_no=?",
-                    (timestamp, day_key, question_no),
-                )
-                Store.bump_revision(conn)
-            return {
-                "question_no": question_no,
-                "prompt": row["prompt"],
-                "options": json.loads(row["options"]),
-                "solved": row["solved_at"] is not None,
-            }
+            self._ensure_encounter(conn, day_key)
+            conn.execute(
+                "UPDATE adventure_days SET player_hp=? WHERE day_key=?",
+                (PLAYER_HP_MAX, day_key),
+            )
+            Store.bump_revision(conn)
+            return self._public_adventure(conn, day_key)
 
-    def answer_adventure_question(self, question_no: int, answer: int, now: datetime) -> dict:
+    def play_adventure_card(self, monster_id: str, answer: int, now: datetime) -> dict:
         self._require_aware(now)
-        if isinstance(question_no, bool) or question_no not in range(10):
-            raise ValueError("invalid question")
+        if not isinstance(monster_id, str) or not monster_id:
+            raise ValueError("monster_id is required")
         if isinstance(answer, bool) or not isinstance(answer, int):
             raise ValueError("answer must be an integer")
+        self.store.initialize()
         day_key = self._adventure_day_key(now)
         timestamp = now.astimezone(TAIPEI).isoformat()
         with self.store.transaction() as conn:
-            question = conn.execute(
-                "SELECT * FROM adventure_questions WHERE day_key=? AND question_no=?",
-                (day_key, question_no),
+            self._ensure_encounter(conn, day_key)
+            day = conn.execute(
+                "SELECT player_hp, wave_count, completed_at FROM adventure_days WHERE day_key=?",
+                (day_key,),
             ).fetchone()
-            if question is None or question["revealed_at"] is None:
-                raise DomainError("question_unavailable", "先從地圖選一個探索點")
-            if question["solved_at"] is not None:
-                return {"correct": True, "already_solved": True}
-            if answer not in json.loads(question["options"]):
-                raise ValueError("answer must be one of the choices")
-            if int(question["answer"]) != answer:
-                return {"correct": False, "hint": "試著拆成比較簡單的小步驟，再算一次。"}
+            player_hp = int(day["player_hp"])
+            if day["completed_at"] is not None:
+                raise DomainError("adventure_complete", "今天的探險完成了")
+            if player_hp <= 0:
+                raise DomainError("game_over", "先回銀行休息，再進森林")
+            current_wave = self._current_wave(conn, day_key, int(day["wave_count"]))
+            monster = conn.execute(
+                """SELECT * FROM adventure_monsters
+                WHERE day_key=? AND monster_id=?""",
+                (day_key, monster_id),
+            ).fetchone()
+            if monster is None or monster["solved_at"] is not None:
+                raise DomainError("monster_unavailable", "這隻怪已經不在場上")
+            if int(monster["wave_no"]) != current_wave:
+                raise DomainError("monster_unavailable", "這隻怪已經不在場上")
+            hand = self._ensure_wave_hand(conn, day_key, current_wave)
+            if answer not in hand:
+                raise ValueError("answer must be in the hand")
+            answers = json.loads(monster["answers"])
+            hits = int(monster["hits"])
+            expected = int(answers[hits])
+            if answer != expected:
+                player_hp -= 1
+                conn.execute(
+                    "UPDATE adventure_days SET player_hp=? WHERE day_key=?",
+                    (player_hp, day_key),
+                )
+                Store.bump_revision(conn)
+                return {
+                    "correct": False,
+                    "player_hp": player_hp,
+                    "game_over": player_hp <= 0,
+                    "defeated": False,
+                }
+            hand.remove(answer)
             conn.execute(
-                "UPDATE adventure_questions SET solved_at=? WHERE day_key=? AND question_no=?",
-                (timestamp, day_key, question_no),
+                "UPDATE adventure_wave_hands SET cards=? WHERE day_key=? AND wave_no=?",
+                (json.dumps(hand), day_key, current_wave),
             )
-            poi_no = int(question["poi_no"])
-            cleared = conn.execute(
-                "SELECT COUNT(*) AS n FROM adventure_questions WHERE day_key=? AND poi_no=? AND solved_at IS NOT NULL",
-                (day_key, poi_no),
-            ).fetchone()["n"] == 2
-            found = None
-            if cleared:
+            hits += 1
+            defeated = hits >= int(monster["hp_max"])
+            grant_id = monster["grant_id"]
+            solved_at = monster["solved_at"]
+            if defeated:
+                solved_at = timestamp
+                grant_id = uuid4().hex
+                note = f"森林裡撿到 {int(monster['reward'])} 元"
                 conn.execute(
-                    "UPDATE adventure_pois SET cleared_at=? WHERE day_key=? AND poi_no=? AND cleared_at IS NULL",
-                    (timestamp, day_key, poi_no),
+                    """INSERT INTO grants (id, amount, note, is_bonus, created_at, claimed_at)
+                    VALUES (?, ?, ?, 0, ?, NULL)""",
+                    (grant_id, int(monster["reward"]), note, timestamp),
                 )
-                if poi_no < 4:
-                    badge_id = f"forest-{poi_no // 2 + 1}"
-                    piece = "left" if poi_no % 2 == 0 else "right"
-                else:
-                    badge_id = "forest-1"
-                    pair = conn.execute(
-                        "SELECT piece, count FROM adventure_badges WHERE badge_id=?",
-                        (badge_id,),
-                    ).fetchall()
-                    counts = {row["piece"]: int(row["count"]) for row in pair}
-                    piece = "left" if counts.get("left", 0) <= counts.get("right", 0) else "right"
-                conn.execute(
-                    """INSERT INTO adventure_badges (badge_id, piece, count) VALUES (?, ?, 1)
-                    ON CONFLICT(badge_id, piece) DO UPDATE SET count=count+1""",
-                    (badge_id, piece),
-                )
-                found = {"badge_id": badge_id, "piece": piece}
-            correct_count = conn.execute(
-                "SELECT COUNT(*) AS n FROM adventure_questions WHERE day_key=? AND solved_at IS NOT NULL",
-                (day_key,),
-            ).fetchone()["n"]
-            grant_id = None
-            if int(correct_count) >= 5:
-                conn.execute(
-                    "INSERT OR IGNORE INTO adventure_days (day_key) VALUES (?)", (day_key,)
-                )
-                day = conn.execute(
-                    "SELECT reward_grant_id FROM adventure_days WHERE day_key=?", (day_key,)
-                ).fetchone()
-                if day["reward_grant_id"] is None:
-                    grant_id = uuid4().hex
+                remaining = conn.execute(
+                    """SELECT COUNT(*) AS n FROM adventure_monsters
+                    WHERE day_key=? AND solved_at IS NULL AND monster_id!=?""",
+                    (day_key, monster_id),
+                ).fetchone()["n"]
+                if int(remaining) == 0:
                     conn.execute(
-                        "INSERT INTO grants (id, amount, note, is_bonus, created_at) VALUES (?, 5, '每日冒險通關', 1, ?)",
-                        (grant_id, timestamp),
+                        "UPDATE adventure_days SET completed_at=? WHERE day_key=?",
+                        (timestamp, day_key),
                     )
-                    conn.execute(
-                        "UPDATE adventure_days SET reward_grant_id=?, completed_at=? WHERE day_key=?",
-                        (grant_id, timestamp, day_key),
-                    )
+            conn.execute(
+                """UPDATE adventure_monsters
+                SET hits=?, solved_at=?, grant_id=?
+                WHERE day_key=? AND monster_id=?""",
+                (hits, solved_at, grant_id, day_key, monster_id),
+            )
             Store.bump_revision(conn)
-            reward = conn.execute(
-                "SELECT reward_grant_id FROM adventure_days WHERE day_key=?",
-                (day_key,),
-            ).fetchone()
+            prompts = json.loads(monster["prompts"])
+            next_prompt = prompts[hits] if not defeated else ""
             return {
                 "correct": True,
-                "correct_count": int(correct_count),
-                "poi_cleared": cleared,
-                "fragment": found,
-                "boss_defeated": int(correct_count) >= 5,
-                "reward_new": grant_id is not None,
-                "reward_grant_id": grant_id or (reward["reward_grant_id"] if reward else None),
+                "player_hp": player_hp,
+                "game_over": False,
+                "defeated": defeated,
+                "reward": int(monster["reward"]) if defeated else 0,
+                "prompt": next_prompt,
             }
+
+    def _ensure_encounter(self, conn, day_key: str) -> None:
+        exists = conn.execute(
+            "SELECT 1 FROM adventure_monsters WHERE day_key=? LIMIT 1",
+            (day_key,),
+        ).fetchone()
+        if exists is not None:
+            return
+        rng = random.Random(f"{self.child_id}:{day_key}:piggy-adventure-v2")
+        wave_count = 3 if rng.random() < 0.5 else 5
+        wave_sizes = [rng.randint(1, 3) for _ in range(wave_count)]
+        elite_wave = None
+        if rng.random() < 0.2 and wave_count >= 2:
+            elite_wave = rng.randint(1, wave_count - 1)
+        monsters = []
+        for wave_no, size in enumerate(wave_sizes):
+            elite_slot = rng.randrange(size) if elite_wave == wave_no else None
+            used_answers: set[int] = set()
+            for slot in range(size):
+                elite = elite_slot == slot
+                hp_max = 2 if elite else 1
+                prompts = []
+                answers = []
+                for _hit in range(hp_max):
+                    prompt, answer = self._make_math_problem(rng, hard=elite, forbidden=used_answers)
+                    used_answers.add(answer)
+                    prompts.append(prompt)
+                    answers.append(answer)
+                monsters.append(
+                    {
+                        "monster_id": f"w{wave_no}s{slot}",
+                        "wave_no": wave_no,
+                        "slot_no": slot,
+                        "is_elite": 1 if elite else 0,
+                        "hp_max": hp_max,
+                        "prompts": json.dumps(prompts, ensure_ascii=False),
+                        "answers": json.dumps(answers),
+                    }
+                )
+        loot_total = rng.randint(ADVENTURE_LOOT_MIN, ADVENTURE_DAILY_REWARD_LIMIT)
+        rewards = self._split_adventure_loot(
+            loot_total,
+            [bool(item["is_elite"]) for item in monsters],
+        )
+        conn.execute(
+            """INSERT INTO adventure_days (day_key, wave_count, loot_total, player_hp)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(day_key) DO UPDATE SET
+              wave_count=excluded.wave_count,
+              loot_total=excluded.loot_total,
+              player_hp=excluded.player_hp""",
+            (day_key, wave_count, loot_total, PLAYER_HP_MAX),
+        )
+        for item, reward in zip(monsters, rewards):
+            conn.execute(
+                """INSERT INTO adventure_monsters (
+                    day_key, monster_id, wave_no, slot_no, is_elite, hp_max, hits,
+                    prompts, answers, reward
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)""",
+                (
+                    day_key,
+                    item["monster_id"],
+                    item["wave_no"],
+                    item["slot_no"],
+                    item["is_elite"],
+                    item["hp_max"],
+                    item["prompts"],
+                    item["answers"],
+                    reward,
+                ),
+            )
+        Store.bump_revision(conn)
+
+    @staticmethod
+    def _make_math_problem(rng: random.Random, hard: bool, forbidden: set[int]) -> tuple[str, int]:
+        for _ in range(40):
+            if hard:
+                if rng.random() < 0.5:
+                    left, right = rng.randint(18, 80), rng.randint(12, 39)
+                    prompt, answer = f"{left}+{right}", left + right
+                else:
+                    left = rng.randint(40, 99)
+                    right = rng.randint(11, min(39, left - 1))
+                    prompt, answer = f"{left}−{right}", left - right
+            else:
+                kind = rng.randrange(3)
+                if kind == 0:
+                    left, right = rng.randint(1, 20), rng.randint(1, 20)
+                    prompt, answer = f"{left}+{right}", left + right
+                elif kind == 1:
+                    left = rng.randint(8, 40)
+                    right = rng.randint(1, left)
+                    prompt, answer = f"{left}−{right}", left - right
+                else:
+                    left, right = rng.randint(2, 5), rng.randint(2, 9)
+                    prompt, answer = f"{left}×{right}", left * right
+            if answer not in forbidden and answer >= 0:
+                return prompt, answer
+        raise RuntimeError("could not build a unique math problem")
+
+    @staticmethod
+    def _split_adventure_loot(total: int, elite_flags: list[bool]) -> list[int]:
+        count = len(elite_flags)
+        amounts = [1] * count
+        remain = total - count
+        elite_index = next((index for index, elite in enumerate(elite_flags) if elite), None)
+        if elite_index is not None:
+            amounts[elite_index] += 2
+            remain -= 2
+        index = 0
+        while remain > 0:
+            amounts[index % count] += 1
+            remain -= 1
+            index += 1
+        if elite_index is not None:
+            others = [amounts[i] for i in range(count) if i != elite_index]
+            if others:
+                needed = max(others) + 2 - amounts[elite_index]
+                for _ in range(max(0, needed)):
+                    donor = max(
+                        (i for i in range(count) if i != elite_index),
+                        key=lambda i: amounts[i],
+                    )
+                    if amounts[donor] <= 1:
+                        break
+                    amounts[donor] -= 1
+                    amounts[elite_index] += 1
+        return amounts
+
+    @staticmethod
+    def _current_wave(conn, day_key: str, wave_count: int) -> int:
+        row = conn.execute(
+            """SELECT MIN(wave_no) AS wave_no FROM adventure_monsters
+            WHERE day_key=? AND solved_at IS NULL""",
+            (day_key,),
+        ).fetchone()
+        if row["wave_no"] is None:
+            return max(0, wave_count - 1)
+        return int(row["wave_no"])
+
+    def _ensure_wave_hand(self, conn, day_key: str, wave_no: int) -> list[int]:
+        row = conn.execute(
+            "SELECT cards FROM adventure_wave_hands WHERE day_key=? AND wave_no=?",
+            (day_key, wave_no),
+        ).fetchone()
+        if row is not None:
+            return json.loads(row["cards"])
+        rng = random.Random(f"{self.child_id}:{day_key}:hand:{wave_no}")
+        needed: list[int] = []
+        for monster in conn.execute(
+            """SELECT answers, hits, hp_max FROM adventure_monsters
+            WHERE day_key=? AND wave_no=? AND solved_at IS NULL""",
+            (day_key, wave_no),
+        ):
+            answers = json.loads(monster["answers"])
+            hits = int(monster["hits"])
+            needed.extend(int(value) for value in answers[hits:])
+        used = set(needed)
+        decoy_count = 2 if rng.random() < 0.5 else 3
+        decoys: list[int] = []
+        while len(decoys) < decoy_count and needed:
+            base = rng.choice(needed)
+            candidate = max(0, base + rng.choice((-3, -2, -1, 1, 2, 3, 10, -10)))
+            if candidate not in used:
+                decoys.append(candidate)
+                used.add(candidate)
+        cards = needed + decoys
+        rng.shuffle(cards)
+        conn.execute(
+            "INSERT INTO adventure_wave_hands (day_key, wave_no, cards) VALUES (?, ?, ?)",
+            (day_key, wave_no, json.dumps(cards)),
+        )
+        return cards
+
+    def _public_adventure(self, conn, day_key: str) -> dict:
+        day = conn.execute(
+            "SELECT wave_count, loot_total, player_hp, completed_at FROM adventure_days WHERE day_key=?",
+            (day_key,),
+        ).fetchone()
+        wave_count = int(day["wave_count"])
+        completed = day["completed_at"] is not None
+        current_wave = self._current_wave(conn, day_key, wave_count)
+        earned = conn.execute(
+            """SELECT COALESCE(SUM(reward), 0) AS total FROM adventure_monsters
+            WHERE day_key=? AND solved_at IS NOT NULL""",
+            (day_key,),
+        ).fetchone()["total"]
+        living = list(
+            conn.execute(
+                """SELECT monster_id, is_elite, hp_max, hits, prompts, reward
+                FROM adventure_monsters
+                WHERE day_key=? AND wave_no=? AND solved_at IS NULL
+                ORDER BY slot_no""",
+                (day_key, current_wave),
+            )
+        )
+        hand = [] if completed or not living else self._ensure_wave_hand(conn, day_key, current_wave)
+        player_hp = int(day["player_hp"])
+        monsters = []
+        for row in living:
+            hits = int(row["hits"])
+            prompts = json.loads(row["prompts"])
+            hp_max = int(row["hp_max"])
+            monsters.append(
+                {
+                    "id": row["monster_id"],
+                    "elite": bool(row["is_elite"]),
+                    "prompt": prompts[hits],
+                    "hp": hp_max - hits,
+                    "hp_max": hp_max,
+                    "reward": int(row["reward"]),
+                }
+            )
+        return {
+            "day_key": day_key,
+            "wave_count": wave_count,
+            "current_wave": current_wave,
+            "player_hp": player_hp,
+            "player_hp_max": PLAYER_HP_MAX,
+            "loot_total": int(day["loot_total"]),
+            "earned_today": int(earned),
+            "reward_limit": ADVENTURE_DAILY_REWARD_LIMIT,
+            "completed": completed,
+            "game_over": player_hp <= 0 and not completed,
+            "monsters": monsters,
+            "hand": hand,
+        }
 
     def _authorize_parent(self, pin: str, current: datetime) -> DomainError | None:
         with self.household.transaction() as conn:
@@ -1563,6 +1669,12 @@ class PiggyService:
                 "特別獎金" if selected["is_bonus"] else "零用錢"
             )
             kind = "bonus_claim" if selected["is_bonus"] else "allowance_claim"
+            forest = conn.execute(
+                "SELECT 1 FROM adventure_monsters WHERE grant_id=? LIMIT 1",
+                (selected["id"],),
+            ).fetchone()
+            if forest is not None:
+                kind = "adventure_reward"
             conn.execute(
                 """
                 INSERT INTO ledger (

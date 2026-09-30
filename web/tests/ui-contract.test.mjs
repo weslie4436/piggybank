@@ -226,6 +226,7 @@ test("claim copy uses the speech bubble and coin sheet, not the old claim button
   assert.match(html, /有0筆零用錢可領取/);
   assert.match(js, /有" \+ waiting\.length \+ "筆零用錢可領取/);
   assert.match(js, /你有" \+ first\.amount \+ "元獎金/);
+  assert.match(js, /森林裡撿到/);
   assert.match(js, /classList\.toggle\("is-bonus"/);
   assert.doesNotMatch(html, /claim-apply|每晚 7 點發放/);
 });
@@ -260,6 +261,25 @@ test("door.js rolls held money in stepped ticks and stores pig guide lines", () 
   assert.match(js, /\/api\/settings\/guides/);
   assert.doesNotMatch(js, /piggybank\.guides"/);
   assert.doesNotMatch(js, /piggybank\.theme/);
+});
+
+test("forest battle board drops the room map and splits portrait from landscape", () => {
+  const html = read("index.html");
+  const css = read("adventure.css");
+  const js = read("adventure.js");
+  assert.match(html, /id="battle-board"/);
+  assert.match(html, /id="enemy-area"/);
+  assert.match(html, /id="hand-area"/);
+  assert.match(html, /id="player-hp"/);
+  assert.doesNotMatch(html, /adventure-map|樹根房|adventure-question/);
+  assert.match(css, /@media \(orientation: portrait\)/);
+  assert.match(css, /orientation: landscape/);
+  assert.doesNotMatch(css, /max-width:\s*700px/);
+  assert.match(js, /orientation: portrait/);
+  assert.match(js, /\/api\/adventure\/enter/);
+  assert.match(js, /\/api\/adventure\/play/);
+  assert.match(js, /pointerdown/);
+  assert.match(js, /visualViewport/);
 });
 
 test("pages link apple-touch-icon and default melody theme", () => {

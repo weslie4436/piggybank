@@ -1201,6 +1201,7 @@
     const first = waiting[0];
     const bonus = !!(first && first.is_bonus);
     const text = document.getElementById("claim-text");
+    const forest = !!(first && first.note && String(first.note).indexOf("森林裡撿到") === 0);
     if (claimBubble) {
       claimBubble.hidden = waiting.length <= 0;
       claimBubble.classList.toggle("is-bonus", bonus);
@@ -1208,13 +1209,17 @@
         "aria-label",
         bonus
           ? "你有" + first.amount + "元獎金"
-          : "有" + waiting.length + "筆零用錢可領取"
+          : forest
+            ? first.note
+            : "有" + waiting.length + "筆零用錢可領取"
       );
     }
     if (text) {
       text.textContent = bonus
         ? "你有" + first.amount + "元獎金"
-        : "有" + waiting.length + "筆零用錢可領取";
+        : forest
+          ? first.note
+          : "有" + waiting.length + "筆零用錢可領取";
     }
     if (waiting.length) stopAllowClock();
     else startAllowClock(snapshot && snapshot.now, snapshot && snapshot.next_allowance_at);

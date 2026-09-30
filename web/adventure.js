@@ -2,40 +2,25 @@
   const screen = document.getElementById("adventure-screen");
   const open = document.getElementById("adventure-open");
   const close = document.getElementById("adventure-close");
-  const map = document.getElementById("adventure-map");
-  const question = document.getElementById("adventure-question");
-  const result = document.getElementById("adventure-result");
-  const speech = document.getElementById("adventure-speech");
-  const progress = document.getElementById("adventure-progress");
-  const fill = document.getElementById("adventure-progress-fill");
-  const collection = document.getElementById("adventure-collection");
+  const enemyArea = document.getElementById("enemy-area");
+  const handArea = document.getElementById("hand-area");
+  const banner = document.getElementById("battle-banner");
   const soundButton = document.getElementById("adventure-sound");
-  const poiNames = ["樹根空地", "石門洞窟", "莓果小徑", "月亮池", "樹冠高台"];
-  const badgeNames = { "forest-1": "苔森林徽章", "forest-2": "月光池徽章" };
   let state = null;
-  let selectedPoi = -1;
-  let currentQuestion = null;
   let sending = false;
   let soundOn = true;
   let audio = null;
+  let drag = null;
 
   async function api(path, options) {
     const key = window.PIGGY_VIEW_KEY || "";
     const result = await window.FamiGate.api(path, key, options || {});
     if (!result.res || !result.res.ok) {
-      const err = new Error(result.j && result.j.message || "小豬暫時連不上冒險地圖");
+      const err = new Error(result.j && result.j.message || "小豬暫時連不上探險");
       err.code = result.j && result.j.code;
       throw err;
     }
     return result.j;
-  }
-
-  function friendlyError(error) {
-    if (error.code === "question_locked") return "先答完這個地方的第一題，再來挑戰第二題。";
-    if (error.code === "question_unavailable") return "先從左邊地圖挑一個地方開始。";
-    if (error.code === "daily_limit") return "今天的十題都看過了；還沒答完的題目還可以繼續作答。";
-    if (error.code === "unauthorized") return "小豬銀行的連線需要家長幫忙確認。";
-    return "森林地圖暫時連不上，請再試一次。";
   }
 
   function cue(kind) {
@@ -45,16 +30,15 @@
       if (!Ctx) return;
       audio = audio || new Ctx();
       if (audio.state === "suspended") audio.resume();
-      const tones = kind === "find" ? [[523, 0], [659, .1], [784, .2], [1046, .34]]
-        : kind === "correct" ? [[523, 0], [659, .1], [784, .2]]
-          : kind === "boss" ? [[392, 0], [494, .12], [587, .24], [784, .4]]
-            : [[240, 0], [210, .12]];
+      const tones = kind === "correct" ? [[523, 0], [659, .1], [784, .2]]
+        : kind === "boss" ? [[392, 0], [494, .12], [587, .24], [784, .4]]
+          : [[240, 0], [210, .12]];
       const now = audio.currentTime;
       tones.forEach(function (tone, i) {
         const osc = audio.createOscillator();
         const gain = audio.createGain();
         const start = now + tone[1];
-        osc.type = i === 0 && kind === "wrong" ? "sine" : "triangle";
+        osc.type = "triangle";
         osc.frequency.setValueAtTime(tone[0], start);
         gain.gain.setValueAtTime(.0001, start);
         gain.gain.exponentialRampToValueAtTime(kind === "wrong" ? .035 : .055, start + .018);
@@ -63,220 +47,295 @@
         osc.start(start);
         osc.stop(start + .25);
       });
-    } catch (_) { /* Sound is optional; the game remains usable without it. */ }
+    } catch (_) { /* optional */ }
   }
 
-  function drawState() {
-    if (!state) return;
-    const count = state.correct_count || 0;
-    const health = document.getElementById("adventure-creature-health");
-    const healthText = document.getElementById("adventure-creature-hp");
-    const creature = document.querySelector(".adventure-creature");
-    const remaining = Math.max(0, 5 - count);
-    health.style.width = (remaining * 20) + "%";
-    healthText.textContent = "活力 " + remaining + " / 5";
-    creature.classList.toggle("is-defeated", remaining === 0);
-    progress.textContent = "今天看過 " + (state.questions_revealed || 0) + " / 10 題";
-    fill.style.width = Math.min(100, (state.questions_revealed || 0) * 10) + "%";
-    document.getElementById("adventure-badge-total").textContent = "收集到 " +
-      Object.values(state.badges || {}).reduce(function (sum, pair) { return sum + pair.left + pair.right; }, 0);
-    document.getElementById("adventure-badge-total").textContent += " 片徽章碎片";
-    map.querySelectorAll(".adventure-poi").forEach(function (button, i) {
-      const poi = state.pois[i];
-      button.classList.toggle("is-selected", selectedPoi === i);
-      button.classList.toggle("is-cleared", !!(poi && poi.cleared));
-      button.setAttribute("aria-label", poiNames[i] + (poi && poi.cleared ? "，已找到徽章碎片" : "，探索地點"));
+  function isPortrait() {
+    return window.matchMedia("(orientation: portrait)").matches;
+  }
+
+  function layoutBoard() {
+    document.documentElement.classList.toggle("battle-portrait", isPortrait());
+    const cards = Array.prototype.slice.call(handArea.querySelectorAll(".answer-card"));
+    const n = cards.length;
+    if (!n) return;
+    const portrait = isPortrait();
+    const area = handArea.getBoundingClientRect();
+    const cardW = portrait ? 72 : 96;
+    const cardH = portrait ? 102 : 128;
+    const spread = Math.min(portrait ? area.width * 0.86 : area.width * 0.72, Math.max(0, n - 1) * (cardW - (portrait ? 28 : 18)));
+    const maxAngle = (portrait ? 10 : 16) * Math.min(1, n / 5);
+    cards.forEach(function (card, i) {
+      const t = n === 1 ? 0.5 : i / (n - 1);
+      const normalized = t * 2 - 1;
+      const x = area.width / 2 + normalized * (spread / 2);
+      const arc = (portrait ? 18 : 28) * (1 - normalized * normalized);
+      const tilt = normalized * maxAngle;
+      card.style.width = cardW + "px";
+      card.style.height = cardH + "px";
+      card.style.left = (x - cardW / 2) + "px";
+      card.style.bottom = (12 + arc) + "px";
+      card.style.transform = "rotate(" + tilt + "deg)";
+      card.style.zIndex = String(10 + i);
+      card.dataset.rest = JSON.stringify({
+        left: card.style.left,
+        bottom: card.style.bottom,
+        transform: card.style.transform,
+        z: card.style.zIndex,
+      });
     });
-    collection.innerHTML = "";
-    Object.keys(badgeNames).forEach(function (id) {
-      const pair = (state.badges && state.badges[id]) || { left: 0, right: 0 };
-      const complete = Math.min(pair.left, pair.right);
-      const card = document.createElement("div");
-      card.className = "adventure-badge" + (complete ? " is-complete" : "");
-      const mark = document.createElement("span"); mark.className = "adventure-badge-mark";
-      const label = document.createElement("span");
-      label.textContent = badgeNames[id] + " · 湊成 " + complete + " 對（左 " + pair.left + " 片、右 " + pair.right + " 片）";
-      card.append(mark, label); collection.appendChild(card);
-    });
-    if (count >= 5 && state.reward_ready && !state.reward_claimed) showReward();
   }
 
-  function showPrompt(title, message, kicker) {
-    result.hidden = true;
-    question.hidden = false;
-    question.innerHTML = "";
-    const small = document.createElement("p"); small.className = "adventure-question-kicker"; small.textContent = kicker || "小豬隊長";
-    const heading = document.createElement("h2"); heading.textContent = title;
-    const copy = document.createElement("p"); copy.textContent = message;
-    question.append(small, heading, copy);
+  function paintHp(current, max) {
+    const wrap = document.getElementById("player-hp");
+    wrap.innerHTML = "";
+    wrap.setAttribute("aria-label", "生命 " + current + " / " + max);
+    for (let i = 0; i < max; i += 1) {
+      const pip = document.createElement("i");
+      if (i < current) pip.className = "is-on";
+      wrap.appendChild(pip);
+    }
+    wrap.classList.toggle("is-hurt", current < max && current > 0);
   }
 
-  function showReward() {
-    result.hidden = false;
-    result.innerHTML = "";
-    const heading = document.createElement("h2"); heading.textContent = "苔苔怪被打敗了！";
-    const text = document.createElement("p"); text.textContent = "你答對五題了！5 元額外零用錢已準備好，領取後會存進撲滿。";
-    const button = document.createElement("button"); button.type = "button"; button.textContent = "領取 5 元零用錢";
-    let returnToBank = false;
-    button.addEventListener("click", async function () {
-      if (returnToBank) { close.click(); return; }
-      button.disabled = true;
-      try {
-        await api("/api/claim", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grant_id: state.reward_grant_id }) });
-        state.reward_claimed = true;
-        cue("boss");
-        result.innerHTML = "";
-        const done = document.createElement("h2"); done.textContent = "5 元已存進撲滿！";
-        const note = document.createElement("p"); note.textContent = "找到的徽章碎片和探險進度都已保存。";
-        result.append(done, note);
-        if (window.dispatchEvent) window.dispatchEvent(new Event("piggy:adventure-reward"));
-      } catch (error) {
-        button.disabled = false;
-        const note = document.createElement("p");
-        note.textContent = error.code === "bonus_waiting"
-          ? "銀行裡還有之前領到的獎金，先回銀行領取，再回來領這 5 元。"
-          : friendlyError(error);
-        result.appendChild(note);
-        if (error.code === "bonus_waiting") {
-          returnToBank = true;
-          button.textContent = "先回銀行領獎";
-        }
-      }
-    });
-    result.append(heading, text, button);
-  }
-
-  function showRetry() {
-    showPrompt("森林地圖暫時連不上", "再試一次連線；地圖進度會保留。", "連線暫停");
+  function showBanner(title, message, done) {
+    banner.hidden = false;
+    banner.innerHTML = "";
+    const heading = document.createElement("h2");
+    heading.textContent = title;
+    const copy = document.createElement("p");
+    copy.textContent = message;
     const button = document.createElement("button");
-    button.type = "button"; button.className = "adventure-next"; button.textContent = "再試一次";
-    button.addEventListener("click", async function () {
-      button.disabled = true; button.textContent = "正在連線…";
-      try {
-        await refresh();
-        showPrompt("地圖更新好了", "挑一個地方繼續探險。", "連線完成");
-      } catch (_) {
-        showRetry();
-      }
-    });
-    question.appendChild(button);
+    button.type = "button";
+    button.className = "adventure-next";
+    button.textContent = "返回銀行";
+    button.addEventListener("click", function () { close.click(); });
+    banner.append(heading, copy, button);
+    if (done) window.dispatchEvent(new Event("piggy:adventure-reward"));
   }
 
-  async function loadQuestion(poiNo, slot) {
-    selectedPoi = poiNo;
-    drawState();
-    speech.textContent = poiNames[poiNo] + "裡傳來一陣窸窣聲……";
+  function hideBanner() {
+    banner.hidden = true;
+    banner.innerHTML = "";
+  }
+
+  function renderMonsters() {
+    enemyArea.innerHTML = "";
+    (state.monsters || []).forEach(function (monster) {
+      const unit = document.createElement("div");
+      unit.className = "enemy-unit" + (monster.elite ? " is-elite" : "");
+      unit.dataset.id = monster.id;
+      const body = document.createElement("div");
+      body.className = "enemy-placeholder";
+      const prompt = document.createElement("strong");
+      prompt.className = "enemy-prompt";
+      prompt.textContent = monster.prompt;
+      const bar = document.createElement("div");
+      bar.className = "enemy-hp";
+      bar.style.setProperty("--hp", String(monster.hp / monster.hp_max));
+      const label = document.createElement("span");
+      label.textContent = monster.hp + " / " + monster.hp_max;
+      bar.appendChild(label);
+      unit.append(body, prompt, bar);
+      enemyArea.appendChild(unit);
+    });
+  }
+
+  function restoreCard(card) {
+    const rest = JSON.parse(card.dataset.rest || "{}");
+    card.classList.remove("is-dragging");
+    card.style.position = "";
+    card.style.left = rest.left || "";
+    card.style.top = "";
+    card.style.bottom = rest.bottom || "";
+    card.style.transform = rest.transform || "";
+    card.style.zIndex = rest.z || "";
+    card.style.width = "";
+    card.style.height = "";
+  }
+
+  function renderHand() {
+    handArea.innerHTML = "";
+    (state.hand || []).forEach(function (value) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "answer-card";
+      card.textContent = String(value);
+      card.dataset.value = String(value);
+      card.addEventListener("pointerdown", onCardDown);
+      handArea.appendChild(card);
+    });
+    layoutBoard();
+  }
+
+  function hitMonster(x, y) {
+    const units = enemyArea.querySelectorAll(".enemy-unit");
+    for (let i = 0; i < units.length; i += 1) {
+      const box = units[i].getBoundingClientRect();
+      if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+        return units[i];
+      }
+    }
+    return null;
+  }
+
+  function onCardDown(event) {
+    if (sending || !state || state.game_over || state.completed) return;
+    const card = event.currentTarget;
+    card.setPointerCapture(event.pointerId);
+    const box = card.getBoundingClientRect();
+    drag = {
+      card: card,
+      dx: event.clientX - box.left,
+      dy: event.clientY - box.top,
+      width: box.width,
+      height: box.height,
+    };
+    card.classList.add("is-dragging");
+    card.style.position = "fixed";
+    card.style.bottom = "auto";
+    card.style.zIndex = "80";
+    card.style.width = box.width + "px";
+    card.style.height = box.height + "px";
+    moveDrag(event);
+    card.addEventListener("pointermove", onCardMove);
+    card.addEventListener("pointerup", onCardUp);
+    card.addEventListener("pointercancel", onCardUp);
+  }
+
+  function moveDrag(event) {
+    if (!drag) return;
+    drag.card.style.left = (event.clientX - drag.dx) + "px";
+    drag.card.style.top = (event.clientY - drag.dy) + "px";
+    const over = hitMonster(event.clientX, event.clientY);
+    enemyArea.querySelectorAll(".enemy-unit").forEach(function (unit) {
+      unit.classList.toggle("is-target", unit === over);
+    });
+  }
+
+  function onCardMove(event) {
+    moveDrag(event);
+  }
+
+  async function onCardUp(event) {
+    const card = drag && drag.card;
+    const value = card && Number(card.dataset.value);
+    const target = hitMonster(event.clientX, event.clientY);
+    if (card) {
+      card.removeEventListener("pointermove", onCardMove);
+      card.removeEventListener("pointerup", onCardUp);
+      card.removeEventListener("pointercancel", onCardUp);
+    }
+    enemyArea.querySelectorAll(".enemy-unit").forEach(function (unit) {
+      unit.classList.remove("is-target");
+    });
+    drag = null;
+    if (!card || !target) {
+      if (card) restoreCard(card);
+      layoutBoard();
+      return;
+    }
+    await play(target.dataset.id, value, card, target);
+  }
+
+  async function play(monsterId, answer, card, unit) {
+    if (sending) return;
+    sending = true;
     try {
-      currentQuestion = await api("/api/adventure/question?poi=" + poiNo + "&slot=" + slot);
+      const outcome = await api("/api/adventure/play", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monster_id: monsterId, answer: answer }),
+      });
+      if (!outcome.correct) {
+        cue("wrong");
+        restoreCard(card);
+        document.getElementById("player-hp").classList.remove("is-hit");
+        void document.getElementById("player-hp").offsetWidth;
+        document.getElementById("player-hp").classList.add("is-hit");
+        state = await api("/api/adventure");
+        draw();
+        if (outcome.game_over || state.game_over) {
+          showBanner("先回銀行休息", "沒有扣你已經存的錢。待領的金幣也還在，等一下再進森林。", false);
+        }
+        return;
+      }
+      cue(outcome.defeated ? "boss" : "correct");
+      unit.classList.add("is-hit");
+      if (outcome.defeated) {
+        window.dispatchEvent(new Event("piggy:adventure-reward"));
+      }
       state = await api("/api/adventure");
-      drawState();
-      renderQuestion(currentQuestion);
+      draw();
+      if (state.completed) {
+        showBanner("今天的探險完成！", "回銀行，點對話框把金幣領進撲滿。", true);
+      }
     } catch (error) {
-      showPrompt("這題暫時打不開", friendlyError(error), "森林小提醒");
+      restoreCard(card);
+      showBanner("暫時連不上", error.message || "請再試一次。", false);
+    } finally {
+      sending = false;
     }
   }
 
-  function renderQuestion(item) {
-    question.hidden = false;
-    result.hidden = true;
-    question.innerHTML = "";
-    const kicker = document.createElement("p"); kicker.className = "adventure-question-kicker";
-    kicker.textContent = poiNames[selectedPoi] + " · 第 " + ((item.question_no % 2) + 1) + " 題";
-    const heading = document.createElement("h2"); heading.textContent = item.prompt;
-    const answers = document.createElement("div"); answers.className = "adventure-answers";
-    const next = document.createElement("button"); next.type = "button"; next.className = "adventure-next";
-    next.textContent = item.question_no % 2 === 0 ? "答這裡的第二題" : "看看其他地方";
-    next.hidden = !item.solved;
-    next.addEventListener("click", function () {
-      if (item.question_no % 2 === 0) loadQuestion(selectedPoi, 1);
-      else {
-        state = null;
-        refresh().then(function () { showPrompt("這裡找完了", "徽章碎片已收好。地圖上還有其他地方可以探索。", "選擇另一個地點"); })
-          .catch(function () { showRetry(); });
-      }
-    });
-    item.options.forEach(function (option) {
-      const button = document.createElement("button"); button.type = "button"; button.className = "adventure-answer"; button.textContent = String(option);
-      button.addEventListener("click", function () { submitAnswer(button, option, item, answers, next); });
-      answers.appendChild(button);
-    });
-    if (item.solved) answers.querySelectorAll("button").forEach(function (button) { button.disabled = true; });
-    question.append(kicker, heading, answers, next);
+  function draw() {
+    if (!state) return;
+    const wave = (state.current_wave || 0) + 1;
+    document.getElementById("adventure-room-title").textContent = state.completed
+      ? "今天打完了"
+      : "第 " + wave + " / " + state.wave_count + " 波";
+    document.getElementById("adventure-earned").textContent =
+      (state.earned_today || 0) + " / " + (state.loot_total || 30) + " 元";
+    paintHp(state.player_hp, state.player_hp_max || 5);
+    if (state.completed) {
+      renderMonsters();
+      handArea.innerHTML = "";
+      showBanner("今天的探險完成！", "回銀行，點對話框把金幣領進撲滿。", true);
+      return;
+    }
+    if (state.game_over) {
+      renderMonsters();
+      handArea.innerHTML = "";
+      showBanner("先回銀行休息", "沒有扣你已經存的錢。待領的金幣也還在，等一下再進森林。", false);
+      return;
+    }
+    hideBanner();
+    renderMonsters();
+    renderHand();
   }
 
-  async function submitAnswer(button, answer, item, answers, next) {
-    if (sending) return;
-    sending = true;
-    answers.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-    try {
-      const outcome = await api("/api/adventure/answer", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question_no: item.question_no, answer: Number(answer) }),
-      });
-      if (!outcome.correct) {
-        button.classList.add("is-wrong"); cue("wrong");
-        speech.textContent = "差一點，再試一次！";
-        showHint("把數字拆小一點，再算一次。答錯不會扣分。", answers, item, next);
-      } else {
-        button.classList.add("is-correct"); cue(outcome.fragment ? "find" : "correct");
-        const creature = document.querySelector(".adventure-creature");
-        creature.classList.remove("is-hit");
-        void creature.offsetWidth;
-        creature.classList.add("is-hit");
-        speech.textContent = outcome.fragment ? "找到一片徽章碎片！" : "答對了！苔苔怪少了一格活力！";
-        next.hidden = false;
-        if (outcome.poi_cleared) next.textContent = "這裡找完了，看看別處";
-        state = await api("/api/adventure"); drawState();
-        if (outcome.reward_new) cue("boss");
-      }
-    } catch (error) {
-      speech.textContent = friendlyError(error);
-      answers.querySelectorAll("button").forEach(function (b) { b.disabled = false; });
-    } finally { sending = false; }
-  }
-
-  function showHint(text, answers, item, next) {
-    const existing = question.querySelector(".adventure-hint");
-    if (existing) existing.remove();
-    const hint = document.createElement("p"); hint.className = "adventure-hint"; hint.textContent = text;
-    const retry = document.createElement("button"); retry.type = "button"; retry.className = "adventure-next"; retry.textContent = "再試一次";
-    retry.addEventListener("click", function () {
-      answers.querySelectorAll("button").forEach(function (b) { b.disabled = false; b.classList.remove("is-wrong"); });
-      next.hidden = true; hint.remove(); retry.remove();
-    });
-    question.append(hint, retry);
-  }
-
-  async function refresh() {
-    state = await api("/api/adventure");
-    drawState();
-  }
-
-  function launch() {
+  async function launch() {
     if (!window.PIGGY_VIEW_KEY) return;
     screen.hidden = false;
     document.documentElement.classList.add("adventure-open");
-    showPrompt("答題打敗苔苔怪，收集徽章碎片", "挑一個地方開始，每個地方有兩題，答完第一題才能挑戰第二題。答對五題就能拿到 5 元額外零用錢；每天最多看十題，答錯不會扣分。", "小豬隊長，準備好了嗎？");
-    refresh().catch(showRetry);
+    hideBanner();
+    try {
+      state = await api("/api/adventure/enter", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      draw();
+    } catch (_) {
+      showBanner("森林地圖暫時連不上", "再試一次連線；進度會保留。", false);
+    }
   }
 
   open.addEventListener("click", launch);
-  close.addEventListener("click", function () { screen.hidden = true; document.documentElement.classList.remove("adventure-open"); });
-  map.addEventListener("click", function (event) {
-    const button = event.target.closest(".adventure-poi");
-    if (!button || !state) return;
-    const poiNo = Number(button.dataset.poi);
-    const poiQuestions = state.questions.filter(function (q) { return Math.floor(q.question_no / 2) === poiNo; });
-    const next = poiQuestions.find(function (q) { return !q.solved; });
-    if (!next) { selectedPoi = poiNo; drawState(); showPrompt("這裡找完了", "徽章碎片已收好。地圖上還有其他地方可以探索。", "選擇另一個地點"); return; }
-    loadQuestion(poiNo, next.question_no % 2);
+  close.addEventListener("click", function () {
+    screen.hidden = true;
+    document.documentElement.classList.remove("adventure-open", "battle-portrait");
+    window.dispatchEvent(new Event("piggy:adventure-reward"));
   });
   soundButton.addEventListener("click", function () {
     soundOn = !soundOn;
-    soundButton.textContent = soundOn ? "♫" : "♪";
+    soundButton.textContent = soundOn ? "音效 開" : "音效 關";
     soundButton.setAttribute("aria-label", soundOn ? "音效開啟" : "音效關閉");
     if (soundOn) cue("correct");
   });
+  window.addEventListener("resize", layoutBoard);
+  window.addEventListener("orientationchange", function () {
+    window.setTimeout(layoutBoard, 80);
+  });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", layoutBoard);
+  }
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && !screen.hidden) close.click();
   });

@@ -379,6 +379,9 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
                 "/api/settings/guides",
                 {"pin": "123456", "foot": 80, "coin": 20},
             ),
+            ("GET", "/api/adventure", None),
+            ("POST", "/api/adventure/enter", {}),
+            ("POST", "/api/adventure/play", {"monster_id": "w0s0", "answer": 1}),
         )
 
         for method, target, body in cases:
@@ -390,6 +393,21 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
                 )
                 self.assertEqual(401, status)
                 self.assertEqual("unauthorized", payload["error"])
+
+    def test_adventure_enter_returns_a_board_without_answers(self):
+        key = quote(self.personal)
+        status, _, board = self.json_request(
+            "POST",
+            f"/api/adventure/enter?k={key}",
+            {},
+        )
+        self.assertEqual(200, status)
+        self.assertGreaterEqual(board["loot_total"], 18)
+        self.assertLessEqual(board["loot_total"], 30)
+        self.assertEqual(5, board["player_hp"])
+        self.assertTrue(board["monsters"])
+        self.assertTrue(board["hand"])
+        self.assertNotIn("answers", board["monsters"][0])
 
     def test_ledger_and_parent_settings_endpoints(self):
         today = self.now.date()
