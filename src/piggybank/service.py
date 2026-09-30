@@ -78,6 +78,13 @@ class PiggyService:
         self.store.initialize()
         day_key = self._adventure_day_key(now)
         with self.store.transaction() as conn:
+            if self._setting_on(conn, "adventure_unlimited"):
+                day = conn.execute(
+                    "SELECT completed_at FROM adventure_days WHERE day_key=?",
+                    (day_key,),
+                ).fetchone()
+                if day is not None and day["completed_at"] is not None:
+                    self._reset_completed_adventure(conn, day_key)
             self._ensure_encounter(conn, day_key)
             conn.execute(
                 "UPDATE adventure_days SET player_hp=? WHERE day_key=?",
@@ -188,7 +195,9 @@ class PiggyService:
         ).fetchone()
         if exists is not None:
             return
-        rng = random.Random(f"{self.child_id}:{day_key}:piggy-adventure-v2")
+        rng = random.Random(
+            f"{self.child_id}:{day_key}:piggy-adventure-v2:{self._practice_run(conn)}"
+        )
         wave_count = 3 if rng.random() < 0.5 else 5
         wave_sizes = [rng.randint(1, 3) for _ in range(wave_count)]
         elite_wave = None
@@ -407,6 +416,89 @@ class PiggyService:
             "monsters": monsters,
             "hand": hand,
         }
+
+    @staticmethod
+    def _setting_on(conn, key: str) -> bool:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key=?",
+            (key,),
+        ).fetchone()
+        return row is not None and row["value"] == "1"
+
+    @staticmethod
+    def _practice_run(conn) -> str:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key='adventure_practice_run'"
+        ).fetchone()
+        return row["value"] if row is not None else "0"
+
+    def _reset_completed_adventure(self, conn, day_key: str) -> None:
+        nxt = str(int(self._practice_run(conn)) + 1)
+        conn.execute(
+            """INSERT INTO settings (key, value)
+            VALUES ('adventure_practice_run', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+            (nxt,),
+        )
+        conn.execute(
+            "DELETE FROM adventure_wave_hands WHERE day_key=?",
+            (day_key,),
+        )
+        conn.execute(
+            "DELETE FROM adventure_monsters WHERE day_key=?",
+            (day_key,),
+        )
+        conn.execute(
+            """UPDATE adventure_days
+            SET completed_at=NULL, player_hp=?
+            WHERE day_key=?""",
+            (PLAYER_HP_MAX, day_key),
+        )
+
+    def set_adventure_unlimited(self, pin: str, enabled: bool, now: datetime) -> dict:
+        self._require_aware(now)
+        if not isinstance(enabled, bool):
+            raise ValueError("enabled must be a boolean")
+        current = now.astimezone(TAIPEI)
+        flag = "1" if enabled else "0"
+        if not self._same_ledger():
+            deferred_error = self._authorize_parent(pin, current)
+            if deferred_error is not None:
+                raise deferred_error
+            with self.store.transaction() as conn:
+                conn.execute(
+                    """INSERT INTO settings (key, value)
+                    VALUES ('adventure_unlimited', ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+                    (flag,),
+                )
+                return {
+                    "revision": Store.bump_revision(conn),
+                    "adventure_unlimited": enabled,
+                }
+        result = None
+        with self.store.transaction() as conn:
+            deferred_error = self._authorize_parent_in_transaction(
+                conn,
+                pin,
+                current,
+            )
+            if deferred_error is None:
+                conn.execute(
+                    """INSERT INTO settings (key, value)
+                    VALUES ('adventure_unlimited', ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+                    (flag,),
+                )
+                result = {
+                    "revision": Store.bump_revision(conn),
+                    "adventure_unlimited": enabled,
+                }
+        if deferred_error is not None:
+            raise deferred_error
+        if result is None:
+            raise RuntimeError("adventure unlimited update produced no result")
+        return result
 
     def _authorize_parent(self, pin: str, current: datetime) -> DomainError | None:
         with self.household.transaction() as conn:
@@ -1515,6 +1607,9 @@ class PiggyService:
                 ),
                 "pending_grants": pending_grants,
                 "pig_guides": guides,
+                "adventure_unlimited": self._setting_on(
+                    conn, "adventure_unlimited"
+                ),
             }
         finally:
             conn.close()

@@ -379,6 +379,11 @@ class TestChildMoneyEndpoints(VaultHttpTestCase):
                 "/api/settings/guides",
                 {"pin": "123456", "foot": 80, "coin": 20},
             ),
+            (
+                "PUT",
+                "/api/settings/adventure-unlimited",
+                {"pin": "123456", "on": True},
+            ),
             ("GET", "/api/adventure", None),
             ("POST", "/api/adventure/enter", {}),
             ("POST", "/api/adventure/play", {"monster_id": "w0s0", "answer": 1}),

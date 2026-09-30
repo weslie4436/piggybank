@@ -210,6 +210,31 @@ class TestAdventureEncounter(AdventureTestCase):
         self.assertEqual(len(state["hand"]), len(set(state["hand"])))
         self.assertGreaterEqual(len(state["hand"]), len(living_answers) + 2)
 
+    def _finish_today(self) -> dict:
+        self.service.enter_adventure(self.now)
+        for _ in range(80):
+            board = self.service.adventure_state(self.now)
+            if board["completed"]:
+                return board
+            monster = board["monsters"][0]
+            answers = self._answers_for(monster["id"], board["day_key"])
+            hit = monster["hp_max"] - monster["hp"]
+            self.service.play_adventure_card(monster["id"], answers[hit], self.now)
+        self.fail("could not finish today's forest")
+
+    def test_unlimited_enter_starts_a_new_run_after_clearing_the_day(self):
+        self.service.initialize(self.now)
+        self.service.set_parent_pin("123456", self.now)
+        finished = self._finish_today()
+        self.assertTrue(finished["completed"])
+        again = self.service.enter_adventure(self.now)
+        self.assertTrue(again["completed"])
+        self.service.set_adventure_unlimited("123456", True, self.now)
+        replay = self.service.enter_adventure(self.now)
+        self.assertFalse(replay["completed"])
+        self.assertTrue(replay["monsters"])
+        self.assertTrue(self.service.state(self.now)["adventure_unlimited"])
+
 
 if __name__ == "__main__":
     unittest.main()

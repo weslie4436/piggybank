@@ -572,6 +572,13 @@ def make_server(
                     self._string_field(payload, "pin"),
                     datetime.now(TAIPEI),
                 )
+            if path == "/api/settings/adventure-unlimited":
+                payload = self._read_json()
+                return self._account().set_adventure_unlimited(
+                    self._string_field(payload, "pin"),
+                    self._bool_field(payload, "on"),
+                    datetime.now(TAIPEI),
+                )
             if path == "/api/settings/guides":
                 account = self._account()
                 payload = self._read_json()
