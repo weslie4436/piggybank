@@ -280,6 +280,12 @@ test("forest battle board drops the room map and splits portrait from landscape"
   assert.match(js, /\/api\/adventure\/play/);
   assert.match(js, /pointerdown/);
   assert.match(js, /visualViewport/);
+  assert.match(js, /CARD_HOVER_SCALE = 1.25/);
+  assert.match(js, /HAND_DRAG_THRESHOLD_PX = 6/);
+  assert.match(js, /HAND_HOVER_LIFT_RATIO/);
+  assert.match(js, /navigator.vibrate/);
+  assert.match(html, /id="target-arrow"/);
+  assert.match(css, /\.answer-card\.is-hover/);
 });
 
 test("pages link apple-touch-icon and default melody theme", () => {

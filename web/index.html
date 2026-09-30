@@ -24,7 +24,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="./app.css?v=4"/>
 <link rel="stylesheet" href="./piggy.css?v=28"/>
-<link rel="stylesheet" href="./adventure.css?v=5"/>
+<link rel="stylesheet" href="./adventure.css?v=6"/>
 <link rel="preload" href="./icons/coin-sheet.png" as="image"/>
 <script src="./config.js?v=1790090522"></script>
 <script>
@@ -187,6 +187,10 @@
   <div class="battle-board" id="battle-board">
     <div class="enemy-area" id="enemy-area" aria-label="怪物"></div>
     <div class="hand-area" id="hand-area" aria-label="手牌"></div>
+    <svg class="target-arrow" id="target-arrow" hidden aria-hidden="true">
+      <path id="target-arrow-path"/>
+      <polygon id="target-arrow-head"/>
+    </svg>
     <div class="battle-banner" id="battle-banner" hidden></div>
   </div>
 </section>
@@ -237,6 +241,6 @@
 </div>
 <script src="./gate.js?v=4"></script>
 <script src="./door.js?v=42"></script>
-<script src="./adventure.js?v=5"></script>
+<script src="./adventure.js?v=6"></script>
 </body>
 </html>
