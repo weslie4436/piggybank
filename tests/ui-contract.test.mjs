@@ -104,6 +104,8 @@ test("GM功能 has 發放零用錢 and alignment guides, not the ten-day debug f
   assert.match(js, /function openGmCard/);
   assert.match(js, /function openGrantCard/);
   assert.match(js, /addSwitch\(body, "對位線"/);
+  assert.match(js, /addSwitch\(body, "無限探險"/);
+  assert.match(js, /\/api\/settings\/adventure-unlimited/);
   assert.match(js, /addSwitch\(body, "特別獎金"/);
   assert.match(js, /openAllowanceCard/);
   assert.match(js, /\/api\/grant/);

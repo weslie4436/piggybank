@@ -775,6 +775,27 @@
         setGuideShow(on);
         if (on) closeAct();
       });
+      addSwitch(body, "無限探險", snapshot && snapshot.adventure_unlimited, function (on, input) {
+        if (!parentPin) {
+          input.checked = !on;
+          return;
+        }
+        api("/api/settings/adventure-unlimited", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: parentPin, on: on }),
+          timeout: 8000,
+        }).then(function (x) {
+          if (!x.res || !x.res.ok) {
+            input.checked = !on;
+            parentPin = "";
+            return;
+          }
+          if (snapshot) snapshot.adventure_unlimited = on;
+        }).catch(function () {
+          input.checked = !on;
+        });
+      });
     });
   }
 
