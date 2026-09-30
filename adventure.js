@@ -41,7 +41,8 @@
 
   async function api(path, options) {
     const key = window.PIGGY_VIEW_KEY || "";
-    const result = await window.FamiGate.api(path, key, options || {});
+    const opts = Object.assign({ timeout: 15000 }, options || {});
+    const result = await window.FamiGate.api(path, key, opts);
     if (!result.res || !result.res.ok) {
       const err = new Error(result.j && result.j.message || "小豬暫時連不上探險");
       err.code = result.j && result.j.code;
@@ -601,8 +602,13 @@
       }
     } catch (error) {
       hovered = null;
-      tweenToRest(card);
-      showBanner("暫時連不上", error.message || "請再試一次。", false);
+      try {
+        state = await api("/api/adventure");
+        draw();
+      } catch (_) {
+        tweenToRest(card);
+        showBanner("暫時連不上", error.message || "請再試一次。", false);
+      }
     } finally {
       sending = false;
     }
