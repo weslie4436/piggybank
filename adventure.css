@@ -47,6 +47,11 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 .enemy-unit { position:relative;display:flex;flex-direction:column;align-items:center;width:min(180px,28vw);transition:transform .18s ease; }
 .enemy-unit.is-target { transform:translateY(-8px) scale(1.04); }
 .enemy-unit.is-hit { animation:enemy-hit .32s ease-out; }
+.enemy-highlight {
+  display:none;position:absolute;inset:0 auto auto 0;width:100%;aspect-ratio:3/5;border-radius:18px;
+  box-shadow:0 0 0 4px #ff4d4d, 0 0 18px #ff4d4d88;pointer-events:none;
+}
+.enemy-unit.is-target .enemy-highlight { display:block; }
 .enemy-placeholder {
   width:100%;aspect-ratio:3/5;border-radius:18px 18px 22px 22px;
   background:linear-gradient(180deg,#6d4d63,#3e2a38);
@@ -76,9 +81,14 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
   position:absolute;pointer-events:auto;border:0;border-radius:14px;
   background:linear-gradient(180deg,#fffaf4,#f1e0c8);color:#4a3428;
   font:800 28px/1 ui-monospace,monospace;box-shadow:0 8px 0 #b89a72;
-  cursor:grab;touch-action:none;user-select:none;
+  cursor:grab;touch-action:none;user-select:none;transform-origin:50% 50%;
 }
-.answer-card.is-dragging { cursor:grabbing;box-shadow:0 16px 24px #0006;transform:none !important; }
+.answer-card.is-hover { box-shadow:0 14px 0 #b89a72, 0 18px 22px #0005; }
+.answer-card.is-dragging { cursor:grabbing;box-shadow:0 16px 24px #0006; }
+.target-arrow { display:none;position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:90;overflow:visible; }
+.target-arrow.is-on { display:block; }
+.target-arrow path { fill:none;stroke:#ff4d4d;stroke-width:10;stroke-linecap:round;stroke-linejoin:round; }
+.target-arrow polygon { fill:#ff4d4d; }
 
 .battle-banner {
   position:absolute;inset:18% 12%;z-index:40;display:grid;place-content:center;gap:10px;text-align:center;
@@ -100,6 +110,7 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
   .enemy-unit { width:min(118px,30vw);margin:0 -8px; }
   .enemy-placeholder { aspect-ratio:2/5;border-radius:14px; }
   .enemy-prompt { font-size:clamp(16px,5vw,22px);top:8%; }
+  .enemy-highlight { aspect-ratio:2/5;border-radius:14px; }
   .enemy-hp { width:100%;height:26px;margin-top:8px; }
   .enemy-hp::before { top:8px;bottom:12px;left:3px;right:6px; }
   .hand-area { height:38%;padding-bottom:env(safe-area-inset-bottom); }
@@ -116,4 +127,5 @@ html.adventure-open,html.adventure-open body { overflow:hidden; }
 @media (prefers-reduced-motion: reduce) {
   .enemy-unit.is-hit,.player-hp.is-hit { animation:none; }
   .enemy-unit { transition:none; }
+  .answer-card { transition:none; }
 }
