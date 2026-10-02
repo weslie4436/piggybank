@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://simple-turtle-proceed-arabia.trycloudflare.com";
+window.VAULT_ORIGIN = "https://conflict-edited-lane-bias.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
