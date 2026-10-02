@@ -1723,6 +1723,41 @@
     }, 8000);
   }
 
+  let originPull = null;
+
+  function pullOrigin() {
+    if (originPull) return originPull;
+    const previous = String(window.VAULT_ORIGIN || "");
+    originPull = fetch("./config.js?t=" + Date.now(), { cache: "no-store" })
+      .then(function (res) { return res.ok ? res.text() : ""; })
+      .then(function (text) {
+        const matched = String(text || "").match(/window\.VAULT_ORIGIN\s*=\s*"([^"]+)"/);
+        if (matched && matched[1] && matched[1] !== previous) {
+          window.VAULT_ORIGIN = matched[1];
+          return true;
+        }
+        return false;
+      })
+      .catch(function () { return false; })
+      .finally(function () { originPull = null; });
+    return originPull;
+  }
+
+  function noteOffline() {
+    if (statusEl) statusEl.textContent = "維護中,請5分鐘後再試";
+    pullOrigin().then(function (changed) {
+      if (changed) {
+        if (bootTimer) {
+          window.clearTimeout(bootTimer);
+          bootTimer = 0;
+        }
+        boot();
+        return;
+      }
+      scheduleReconnect();
+    });
+  }
+
   async function boot() {
     if (booting) return;
     booting = true;
@@ -1738,9 +1773,8 @@
     if (invitePage) showInvite();
     else setBoot(true, "正在連接小豬銀行…");
     try {
-      if (!window.FamiGate.origin()) {
-        if (statusEl) statusEl.textContent = "正在連接小豬銀行…";
-        scheduleReconnect();
+      if (!window.FamiGate || !window.FamiGate.origin()) {
+        noteOffline();
         return;
       }
       if (!key) {
@@ -1779,8 +1813,7 @@
           if (statusEl) statusEl.textContent = (x.j && x.j.message) || "請用邀請連結打開";
           return;
         }
-        if (statusEl) statusEl.textContent = "維護中,請5分鐘後再試";
-        scheduleReconnect();
+        noteOffline();
         return;
       }
       if (x.j.kind === "invite") {
@@ -1816,8 +1849,7 @@
         if (!seen && homeInstall) homeInstall.hidden = false;
       }
     } catch (e) {
-      if (statusEl) statusEl.textContent = "維護中,請5分鐘後再試";
-      scheduleReconnect();
+      noteOffline();
     } finally {
       booting = false;
     }
