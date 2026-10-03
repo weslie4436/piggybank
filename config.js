@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://alcohol-incentives-fun-dealer.trycloudflare.com";
+window.VAULT_ORIGIN = "https://rates-knives-shut-outcome.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
