@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://preferences-alt-scanner-trackbacks.trycloudflare.com";
+window.VAULT_ORIGIN = "https://pentium-atom-compact-saturday.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
