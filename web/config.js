@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://minor-constitute-leon-sociology.trycloudflare.com";
+window.VAULT_ORIGIN = "https://ghz-islands-utah-diary.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
