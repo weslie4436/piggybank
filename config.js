@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://referring-custody-treating-styles.trycloudflare.com";
+window.VAULT_ORIGIN = "https://richard-cottage-remainder-apache.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
