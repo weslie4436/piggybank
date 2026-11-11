@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://italia-trusted-broader-judge.trycloudflare.com";
+window.VAULT_ORIGIN = "https://waterproof-minimum-hero-xml.trycloudflare.com";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
