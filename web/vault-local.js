@@ -187,6 +187,18 @@
     return addDays(today, -STARTER_DAYS);
   }
 
+  function nextResetDate(now) {
+    const today = ymd(now);
+    if (dueAt(today) <= now) return addDays(today, 1);
+    return today;
+  }
+
+  function restoreSeeded(seeded, digest, now) {
+    const child = newChild(seeded.id, seeded.display_name, digest, now, seeded.balance);
+    child.allowanceRules[0].effective_date = nextResetDate(now);
+    return child;
+  }
+
   function hex(buf) {
     return Array.from(new Uint8Array(buf)).map(function (b) {
       return b.toString(16).padStart(2, "0");
@@ -824,7 +836,7 @@
     const now = taipeiNow();
     const seededChild = SEED.find(function (s) { return s.token_hash === digest; });
     if (seededChild) {
-      child = newChild(seededChild.id, seededChild.display_name, digest, now, seededChild.balance);
+      child = restoreSeeded(seededChild, digest, now);
       vault.children.push(child);
       vault._created = true;
       return child;
@@ -908,7 +920,7 @@
         if (!child) {
           const seededChild = SEED.find(function (s) { return s.token_hash === digest; });
           if (seededChild) {
-            child = newChild(seededChild.id, seededChild.display_name, digest, now, seededChild.balance);
+            child = restoreSeeded(seededChild, digest, now);
             vault.children.push(child);
             return ok({ kind: "personal", reader: readerOf(child) });
           }
