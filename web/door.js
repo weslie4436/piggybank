@@ -1635,7 +1635,7 @@
     if (busy) return;
     busy = true;
     startWaitCardPct();
-    showWaitCard("準備消費中");
+    showWaitCard("產生 QR 中");
     try {
       const x = await api("/api/exchange/reserve", {
         method: "POST",
@@ -1672,65 +1672,29 @@
   function paintQr(result) {
     const tray = document.getElementById("exchange-tray");
     const title = document.getElementById("exTitle");
-    if (title) title.textContent = "請父母輸入密碼";
+    if (title) title.textContent = "請給父母掃";
     if (!tray) return;
     tray.innerHTML = "";
     exToken = result.token || "";
-    const amt = document.createElement("p");
-    amt.className = "money-hero";
-    amt.textContent = (result.requested_amount || exAmount) + " 元";
-    tray.appendChild(amt);
-    const hint = document.createElement("p");
-    hint.className = "ex-note";
-    hint.textContent = "尚未扣款。第一次輸入的六位數會成為家長密碼。";
-    tray.appendChild(hint);
-    pinPad(tray, function (value) {
-      const err = tray.querySelector(".err");
-      if (document.getElementById("parent-note")) return;
-      const row = document.createElement("div");
-      row.className = "apple-row";
-      const input = document.createElement("input");
-      input.id = "parent-note";
-      input.maxLength = 80;
-      input.setAttribute("aria-label", "說明");
-      input.autocomplete = "off";
-      input.placeholder = "說明";
-      row.appendChild(input);
-      tray.appendChild(row);
-      exApplyFace("確認");
-      const btn = document.getElementById("exApply");
-      if (!btn) return;
-      btn.onclick = async function () {
-        if (busy) return;
-        const note = ((input && input.value) || "").trim();
-        if (!note) {
-          if (err) err.textContent = "請填說明";
-          return;
-        }
-        busy = true;
-        showWaitCard("父母核准中");
-        try {
-          const x = await api("/api/exchange/approve", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ x: exToken, pin: value, parent_note: note }),
-            timeout: 20000,
-          });
-          if (!x.res || !x.res.ok || !x.j) {
-            if (err) err.textContent = (x.j && x.j.message) || "PIN 不對";
-            return;
-          }
-          exSettled = true;
-          closeExchange();
-          await loadState(true);
-        } finally {
-          hideWaitCard();
-          busy = false;
-        }
-      };
-      window.setTimeout(function () { input.focus(); }, 50);
-    });
+    const img = document.createElement("img");
+    img.className = "ex-qr";
+    img.alt = "消費 QR";
+    const link = result.qr_url || ("https://weslie4436.github.io/piggybank/exchange.html?x=" + encodeURIComponent(result.token));
+    img.src = qrDataUrl(link);
+    tray.appendChild(img);
+    const note = document.createElement("p");
+    note.className = "ex-note";
+    note.textContent = "尚未扣款，關閉即可反悔";
+    tray.appendChild(note);
     startPoll(result.id);
+  }
+
+  function qrDataUrl(text) {
+    const qr = window.qrcode(0, "M");
+    qr.addData(text);
+    qr.make();
+    const svg = qr.createSvgTag(2, 2);
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
 
   function startPoll(id) {

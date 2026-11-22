@@ -275,8 +275,9 @@
     if (!vault.inviteTokenHash) vault.inviteTokenHash = await sha256(vault.inviteToken);
   }
 
-  async function loadVault() {
-    if (mem) return mem;
+  async function loadVault(force) {
+    if (mem && !force) return mem;
+    mem = null;
     try { await loadGhToken(); } catch (err) {}
     const db = await openDb();
     let vault = null;
@@ -288,7 +289,7 @@
     const cached = await idbGet(db);
     const remoteRev = (vault && vault.revision) || 0;
     const cacheRev = (cached && cached.revision) || 0;
-    const preferCached = cached && (!vault || cacheRev > remoteRev);
+    const preferCached = !force && cached && (!vault || cacheRev > remoteRev);
     if (preferCached) {
       vault = cached;
       if (GH.token) await ghPut(vault);
@@ -303,6 +304,9 @@
 
   async function saveVault(db, vault) {
     vault.revision = (vault.revision || 0) + 1;
+    if (!GH.token) {
+      try { await loadGhToken(); } catch (err) {}
+    }
     if (GH.token) {
       try {
         await ghPut(vault);
@@ -884,7 +888,8 @@
     const path = parsed.path;
     const q = parsed.q;
     const now = taipeiNow();
-    const loaded = await loadVault();
+    const refresh = path === "/api/exchange/resolve" || path === "/api/exchange/status" || path === "/api/exchange/approve";
+    const loaded = await loadVault(refresh);
     const db = loaded.db;
     const vault = loaded.vault;
     let body = {};
