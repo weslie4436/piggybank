@@ -888,7 +888,10 @@
     const path = parsed.path;
     const q = parsed.q;
     const now = taipeiNow();
-    const refresh = path === "/api/exchange/resolve" || path === "/api/exchange/status" || path === "/api/exchange/approve";
+    try { await loadGhToken(); } catch (err) {}
+    const refresh = !!GH.token && (
+      path === "/api/exchange/resolve" || path === "/api/exchange/status" || path === "/api/exchange/approve"
+    );
     const loaded = await loadVault(refresh);
     const db = loaded.db;
     const vault = loaded.vault;
