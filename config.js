@@ -1,4 +1,4 @@
-window.VAULT_ORIGIN = "https://year-roommates-transform-sms.trycloudflare.com";
+window.VAULT_ORIGIN = "";
 window.FAMIGATE_CONFIG = {
   appId: "piggybank",
   viewKeyStorage: "piggybank.viewKey",
