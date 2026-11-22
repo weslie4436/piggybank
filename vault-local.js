@@ -1,5 +1,5 @@
 /**
- * Pages-only vault. Ledger lives in this browser (IndexedDB), not on a PC.
+ * Pages-only vault. Ledger is a JSON file on GitHub; IndexedDB is just a cache.
  */
 (function () {
   const DB_NAME = "piggybank-local";
@@ -9,6 +9,11 @@
   const STARTER_DAYS = 7;
   const PIN_ITERS = 100000;
   const PAGES = "https://weslie4436.github.io/piggybank";
+  const GH = window.GITHUB_VAULT || {};
+  const GH_API = "https://api.github.com/repos/"
+    + (GH.owner || "weslie4436") + "/"
+    + (GH.repo || "piggybank-data") + "/contents/"
+    + (GH.path || "vault.json");
   const SEED = [
     { id: "child1", display_name: "小明", token_hash: "b9909171a4c072645e7a51f9924b7df6aaddb528576c82d387679616a47fee04", balance: 10336 },
     { id: "c7b331fd8f1093916", display_name: "小雞", token_hash: "a4321f74d4eea532251a90bba43bf7f55a5dd7d2b58a16e51d706181d76716fc", balance: 100 },
@@ -21,6 +26,8 @@
 
   let chain = Promise.resolve();
   let dbp = null;
+  let mem = null;
+  let ghSha = "";
 
   function enqueue(fn) {
     const run = chain.then(fn, fn);
@@ -57,6 +64,81 @@
       tx.oncomplete = function () { resolve(); };
       tx.onerror = function () { reject(tx.error); };
     });
+  }
+
+  function ghHeaders() {
+    const h = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    };
+    if (GH.token) h.Authorization = "Bearer " + GH.token;
+    return h;
+  }
+
+  function utf8ToB64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+
+  function b64ToUtf8(b64) {
+    return decodeURIComponent(escape(atob(String(b64 || "").replace(/\s/g, ""))));
+  }
+
+  async function loadGhToken() {
+    if (GH.token) return;
+    const authApi = "https://api.github.com/repos/"
+      + (GH.owner || "weslie4436") + "/"
+      + (GH.repo || "piggybank-data") + "/contents/"
+      + (GH.authPath || "app-auth.json");
+    const res = await fetch(authApi, {
+      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+    const doc = await res.json();
+    if (!doc.content) return;
+    const auth = JSON.parse(b64ToUtf8(doc.content));
+    if (auth && auth.token) GH.token = auth.token;
+  }
+
+  async function ghGet() {
+    const res = await fetch(GH_API, { headers: ghHeaders(), cache: "no-store" });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("github get " + res.status);
+    const doc = await res.json();
+    ghSha = doc.sha || "";
+    if (!doc.content) return null;
+    return JSON.parse(b64ToUtf8(doc.content));
+  }
+
+  async function ghPut(vault) {
+    if (!GH.token) throw new Error("missing github token");
+    const body = {
+      message: "vault " + (vault.revision || 0),
+      content: utf8ToB64(JSON.stringify(vault)),
+      branch: GH.branch || "main",
+    };
+    if (ghSha) body.sha = ghSha;
+    let res = await fetch(GH_API, {
+      method: "PUT",
+      headers: Object.assign(ghHeaders(), { "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    });
+    if (res.status === 409 || res.status === 422) {
+      const latest = await fetch(GH_API, { headers: ghHeaders(), cache: "no-store" });
+      if (latest.ok) {
+        const doc = await latest.json();
+        ghSha = doc.sha || "";
+        body.sha = ghSha;
+        res = await fetch(GH_API, {
+          method: "PUT",
+          headers: Object.assign(ghHeaders(), { "Content-Type": "application/json" }),
+          body: JSON.stringify(body),
+        });
+      }
+    }
+    if (!res.ok) throw new Error("github put " + res.status);
+    const saved = await res.json();
+    ghSha = (saved.content && saved.content.sha) || saved.sha || ghSha;
   }
 
   function taipeiParts(d) {
@@ -170,25 +252,54 @@
     };
   }
 
-  async function loadVault() {
-    const db = await openDb();
-    let vault = await idbGet(db);
-    if (!vault) {
-      vault = emptyVault();
-      vault.inviteTokenHash = await sha256(vault.inviteToken);
-      await idbSet(db, vault);
-    }
-    if (!vault.inviteTokenHash && vault.inviteToken) {
-      vault.inviteTokenHash = await sha256(vault.inviteToken);
-    }
+  function normalizeVault(vault) {
     if (!vault.guides) vault.guides = { foot: 88, coin: 22 };
     if (!Array.isArray(vault.children)) vault.children = [];
-    return { db: db, vault: vault };
+    return vault;
+  }
+
+  async function ensureInvite(vault) {
+    if (!vault.inviteToken) vault.inviteToken = newToken();
+    if (!vault.inviteTokenHash) vault.inviteTokenHash = await sha256(vault.inviteToken);
+  }
+
+  async function loadVault() {
+    if (mem) return mem;
+    try { await loadGhToken(); } catch (err) {}
+    const db = await openDb();
+    let vault = null;
+    try {
+      vault = await ghGet();
+    } catch (err) {
+      vault = null;
+    }
+    const cached = await idbGet(db);
+    const githubEmpty = !vault || !Array.isArray(vault.children) || vault.children.length === 0;
+    const cacheHasKids = cached && Array.isArray(cached.children) && cached.children.length > 0;
+    if (githubEmpty && cacheHasKids) {
+      vault = cached;
+      if (GH.token) await ghPut(vault);
+    }
+    if (!vault) vault = cached || emptyVault();
+    await ensureInvite(vault);
+    normalizeVault(vault);
+    await idbSet(db, vault);
+    mem = { db: db, vault: vault };
+    return mem;
   }
 
   async function saveVault(db, vault) {
     vault.revision = (vault.revision || 0) + 1;
+    if (GH.token) {
+      try {
+        await ghPut(vault);
+      } catch (err) {
+        mem = null;
+        throw err;
+      }
+    }
     await idbSet(db, vault);
+    mem = { db: db, vault: vault };
   }
 
   function bump(child) {
