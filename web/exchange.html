@@ -21,54 +21,42 @@
 <title>小豬銀行</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./app.css?v=4"/>
-<link rel="stylesheet" href="./piggy.css?v=27"/>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./kid.css?v=1"/>
 <script src="./config.js?v=1795339000"></script>
 </head>
 <body>
-<div class="blobs" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-<div class="hall with-feed is-invite" id="hall">
-  <div class="profile">
-    <h1 class="brand">小豬銀行</h1>
-    <p class="status" id="status">父母核准</p>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+<main class="app parent" id="hall">
+  <header class="top">
+    <span class="avatar"><img src="./icons/pig.png?v=3" alt=""/></span>
+    <div class="hello"><small>小豬銀行</small><b id="status">父母核准</b></div>
+  </header>
+  <div class="ticket">
+    <small>孩子想花</small>
+    <p class="amount" id="exHey">讀取中…</p>
+    <p class="invite-safari hint bad" id="invite-safari" hidden>請用 Safari 打開</p>
   </div>
-  <div class="invite-panel" id="invite-panel">
-    <p class="invite-hey" id="exHey">請輸入家長 PIN</p>
-    <p class="invite-safari" id="invite-safari" hidden>請用 Safari 打開</p>
-    <div class="gate-dots" id="gate-dots" aria-hidden="true"></div>
-    <div class="gate-pad" id="gate-pad" role="group" aria-label="數字門">
-      <button type="button" class="gate-key" data-num="1">1</button>
-      <button type="button" class="gate-key" data-num="2">2</button>
-      <button type="button" class="gate-key" data-num="3">3</button>
-      <button type="button" class="gate-key" data-num="4">4</button>
-      <button type="button" class="gate-key" data-num="5">5</button>
-      <button type="button" class="gate-key" data-num="6">6</button>
-      <button type="button" class="gate-key" data-num="7">7</button>
-      <button type="button" class="gate-key" data-num="8">8</button>
-      <button type="button" class="gate-key" data-num="9">9</button>
-      <span class="gate-skip" aria-hidden="true"></span>
-      <button type="button" class="gate-key" data-num="0">0</button>
-      <button type="button" class="gate-key gate-del" data-del="1" aria-label="刪除">⌫</button>
-    </div>
-    <div class="invite-wait" id="invite-wait" hidden>
-      <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="invite-wait-bar" id="invite-wait-bar"></div>
-    </div>
+  <p class="hint">輸入 6 位家長密碼</p>
+  <div class="pin-dots gate-dots" id="gate-dots" aria-hidden="true"></div>
+  <div class="pad gate-pad" id="gate-pad" role="group" aria-label="數字鍵">
+    <button type="button" class="key gate-key" data-num="1">1</button><button type="button" class="key gate-key" data-num="2">2</button><button type="button" class="key gate-key" data-num="3">3</button><button type="button" class="key gate-key" data-num="4">4</button><button type="button" class="key gate-key" data-num="5">5</button><button type="button" class="key gate-key" data-num="6">6</button><button type="button" class="key gate-key" data-num="7">7</button><button type="button" class="key gate-key" data-num="8">8</button><button type="button" class="key gate-key" data-num="9">9</button>
+    <span></span>
+    <button type="button" class="key gate-key" data-num="0">0</button>
+    <button type="button" class="key fn gate-key" data-del="1" aria-label="刪除">⌫</button>
   </div>
-</div>
-<div class="batch-tag-mask" id="actMask" hidden>
-  <div class="batch-tag-sheet" id="actSheet">
-    <div class="batch-tag-head">
-      <p id="actTitle">說明</p>
-      <button type="button" class="batch-tag-close" id="actClose" aria-label="關閉">×</button>
-    </div>
+  <div class="qr-wait" id="invite-wait" hidden>處理中 <span class="dots3"><i></i><i></i><i></i></span></div>
+</main>
+<div class="mask" id="actMask" hidden>
+  <div class="sheet" role="dialog">
+    <div class="grip"></div>
+    <div class="sheet-head"><h2 id="actTitle">說明</h2><button type="button" class="x" id="actClose" aria-label="關閉">×</button></div>
     <div id="actBody"></div>
-    <button type="button" class="tag-apply" id="exApprove"><span class="tag-apply-face">確認</span></button>
+    <button type="button" class="go mint" id="exApprove">同意這筆消費</button>
   </div>
 </div>
 <script src="./gate.js?v=5"></script>
 <script src="./vault-local.js?v=7"></script>
-<script src="./exchange.js?v=5"></script>
+<script src="./exchange.js?v=6"></script>
 </body>
 </html>
