@@ -54,7 +54,7 @@
     sealedPin = typed;
     sealPad(true);
     const head = document.getElementById("actTitle");
-    if (head) head.textContent = "說明";
+    if (head) head.textContent = "買了什麼？";
     actBody.innerHTML = "";
     const err = document.createElement("p");
     err.className = "err";
@@ -64,6 +64,7 @@
     const input = document.createElement("input");
     input.id = "parent-note";
     input.maxLength = 80;
+    input.placeholder = "例如：文具、點心";
     input.setAttribute("aria-label", "說明");
     input.autocomplete = "off";
     row.appendChild(input);
@@ -87,7 +88,7 @@
       return;
     }
     exchange = x.j;
-    if (hey) hey.textContent = "兌換 " + exchange.requested_amount + " 元";
+    if (hey) hey.textContent = exchange.requested_amount + " 元";
     if (statusEl) statusEl.textContent = "父母核准";
   }
 
@@ -97,7 +98,7 @@
     const err = document.getElementById("exErr");
     const note = ((noteEl && noteEl.value) || "").trim();
     if (!note) {
-      if (err) err.textContent = "請填說明";
+      if (err) err.textContent = "請寫一下買了什麼";
       return;
     }
     const pin = sealedPin || typed;
@@ -132,7 +133,7 @@
       sealedPin = "";
       sealPad(false);
       if (statusEl) statusEl.textContent = "已核准";
-      if (hey) hey.textContent = "完成";
+      if (hey) hey.textContent = "✅ 已同意";
       if (padEl) padEl.classList.add("is-off");
       if (waitEl) waitEl.hidden = true;
     } catch (e) {

@@ -10,50 +10,6 @@ function read(name) {
   return fs.readFileSync(path.join(root, name), "utf8");
 }
 
-test("index.html has home-head, settings gear, and mode names", () => {
-  const html = read("index.html");
-  assert.match(html, /class="[^"]*home-head/);
-  assert.match(html, /class="[^"]*ins-icon[^"]*settings-toggle|class="[^"]*settings-toggle[^"]*ins-icon/);
-  assert.match(html, /id="mode-bar"/);
-});
-
-test("index.html first mode label is 銀行", () => {
-  const html = read("index.html");
-  const bar = html.match(/id="mode-bar"[\s\S]*?<\/div>/);
-  assert.ok(bar, "mode-bar missing");
-  const first = bar[0].match(/class="[^"]*mode-btn[^"]*"[^>]*>([^<]+)/);
-  assert.ok(first, "first mode button missing");
-  assert.equal(first[1].trim(), "銀行");
-  assert.match(bar[0], />紀錄</);
-  assert.doesNotMatch(bar[0], />消費</);
-  assert.doesNotMatch(bar[0], /倉庫|最愛|帳本|兌換/);
-});
-
-test("index.html has pig product regions", () => {
-  const html = read("index.html");
-  for (const id of ["active-pig", "claim-bubble", "exchange-sheet", "ledger"]) {
-    assert.match(html, new RegExp(`id="${id}"`));
-  }
-  assert.match(html, /id="ovNum"/);
-  assert.match(html, /<button[^>]*id="ovTotal"[^>]*aria-label="消費"/);
-  assert.match(html, /class="[^"]*play-line[^"]*pig-say/);
-  assert.match(html, /id="claim-text"/);
-  assert.doesNotMatch(html, /id="claim-apply"|每晚 7 點發放/);
-  assert.doesNotMatch(html, /id="allowClock"|class="allow-clock"/);
-  assert.doesNotMatch(html, /class="money-yen"|<span class="money-yen">/);
-  assert.doesNotMatch(html, /id="ovKicker"|錢包</);
-  assert.doesNotMatch(html, /id="ovYield"|可收益/);
-  assert.doesNotMatch(html, /id="pig-progress"|id="warehouse"|id="page-bonus"|滿豬數|正在養|基礎撲滿/);
-});
-
-test("index.html has confirm, action sheet, ask card, and photo-rail", () => {
-  const html = read("index.html");
-  assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
-  assert.match(html, /class="[^"]*batch-tag-sheet/);
-  assert.match(html, /class="[^"]*ask-card/);
-  assert.match(html, /id="photo-rail"/);
-});
-
 test("door.js switches 銀行 and 紀錄 by swipe and spends from the total", () => {
   const js = read("door.js");
   assert.match(js, /function bindSwipe/);
@@ -163,12 +119,6 @@ test("hey.html has blobs, invite start, and product name 小豬銀行", () => {
   assert.doesNotMatch(html, /每天領零用金|零用金/);
 });
 
-test("exchange.html has PIN pad and confirm", () => {
-  const html = read("exchange.html");
-  assert.match(html, /class="[^"]*gate-pad/);
-  assert.match(html, /<button[^>]*class="[^"]*tag-apply/);
-});
-
 test("door.js pops a coin beside the balance and can claim again before the coin finishes", () => {
   const js = read("door.js");
   const burst = js.slice(js.indexOf("function burstCoin"), js.indexOf("function setPigState"));
@@ -184,22 +134,6 @@ test("door.js pops a coin beside the balance and can claim again before the coin
   assert.doesNotMatch(js, /harvestPig|\/api\/harvest/);
   assert.doesNotMatch(js, /pig-coin is-dropping/);
   assert.doesNotMatch(js, /spawnCoins\(pigBlock/);
-});
-
-test("piggy.css spins the coin sheet beside the balance", () => {
-  const css = read("piggy.css");
-  const html = read("index.html");
-  assert.match(css, /\.money-coin/);
-  assert.match(css, /coin-sheet\.png/);
-  assert.match(css, /background-image:\s*url\("\.\/icons\/coin-sheet\.png"\)/);
-  assert.match(css, /\.money-coin\.is-on/);
-  assert.match(css, /@keyframes coin-spin/);
-  assert.match(css, /@keyframes coin-rise/);
-  assert.doesNotMatch(css, /translate\(var\(--jx/);
-  assert.match(html, /rel="preload"[^>]*coin-sheet\.png|coin-sheet\.png[^>]*rel="preload"/);
-  assert.match(css, /\.pig-say \.play-bubble[\s\S]*var\(--rose/);
-  assert.match(css, /\.pig-say\.is-bonus \.play-bubble::before/);
-  assert.match(css, /\.pig-dot/);
 });
 
 test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
@@ -220,23 +154,6 @@ test("piggy.css lists feeding, harvest, hit, and seated breathe", () => {
   assert.match(css, /\.money-coin[\s\S]*width:\s*36px/);
   assert.match(css, /\.money-hero[\s\S]*clamp\(45px/);
   assert.doesNotMatch(css, /\.money-yen/);
-});
-
-test("claim copy uses the speech bubble and coin sheet, not the old claim button", () => {
-  const html = read("index.html");
-  const js = read("door.js");
-  assert.match(html, /有0筆零用錢可領取/);
-  assert.match(js, /有" \+ waiting\.length \+ "筆零用錢可領取/);
-  assert.match(js, /你有" \+ first\.amount \+ "元獎金/);
-  assert.match(js, /森林裡撿到/);
-  assert.match(js, /classList\.toggle\("is-bonus"/);
-  assert.doesNotMatch(html, /claim-apply|每晚 7 點發放/);
-});
-
-test("index.html uses the user pig artwork on the piggy stage", () => {
-  const html = read("index.html");
-  assert.match(html, /class="pig-art"/);
-  assert.match(html, /\.\/icons\/pig\.png/);
 });
 
 test("piggy.css defines three Sanrio-inspired theme palettes", () => {
@@ -265,38 +182,6 @@ test("door.js rolls held money in stepped ticks and stores pig guide lines", () 
   assert.doesNotMatch(js, /piggybank\.theme/);
 });
 
-test("forest battle board drops the room map and splits portrait from landscape", () => {
-  const html = read("index.html");
-  const css = read("adventure.css");
-  const js = read("adventure.js");
-  assert.match(html, /id="battle-board"/);
-  assert.match(html, /id="enemy-area"/);
-  assert.match(html, /id="hand-area"/);
-  assert.match(html, /id="player-hp"/);
-  assert.doesNotMatch(html, /adventure-map|樹根房|adventure-question/);
-  assert.match(css, /@media \(orientation: portrait\)/);
-  assert.match(css, /orientation: landscape/);
-  assert.doesNotMatch(css, /max-width:\s*700px/);
-  assert.match(js, /orientation: portrait/);
-  assert.match(js, /\/api\/adventure\/enter/);
-  assert.match(js, /\/api\/adventure\/play/);
-  assert.match(js, /pointerdown/);
-  assert.match(js, /visualViewport/);
-  assert.match(js, /CARD_HOVER_SCALE = 1.25/);
-  assert.match(js, /HAND_DRAG_THRESHOLD_PX = 6/);
-  assert.match(js, /HAND_HOVER_LIFT_RATIO/);
-  assert.match(js, /navigator.vibrate/);
-  assert.match(js, /HIT_SHAKE_INTENSITY_PX = 5/);
-  assert.match(js, /HIT_SHAKE_PUNCHES = 5/);
-  assert.match(js, /SCREEN_SHAKE_AMPLITUDE_PX = 10/);
-  assert.match(js, /DAMAGE_FLASH_CYCLES = 3/);
-  assert.match(js, /DEATH_FADE_SEC = 0.35/);
-  assert.match(js, /timeout: 15000/);
-  assert.match(html, /id="target-arrow"/);
-  assert.match(css, /\.answer-card\.is-hover/);
-  assert.match(css, /\.enemy-placeholder\.is-flash/);
-});
-
 test("pages link apple-touch-icon and default melody theme", () => {
   for (const name of ["index.html", "hey.html", "exchange.html"]) {
     const html = read(name);
@@ -304,4 +189,37 @@ test("pages link apple-touch-icon and default melody theme", () => {
     assert.match(html, /rel="apple-touch-icon"/);
     assert.match(html, /icons\/piggy-180\.png/);
   }
+});
+
+// v2 孩子主畫面（kid.js / kid.css）
+test("v2 index.html has pig, balance, claim, spend, ledger, parent lock", () => {
+  const html = read("index.html");
+  for (const id of ["pig", "balance", "claim", "wait-card", "spend", "ledger-btn", "parent-btn", "fx"]) {
+    assert.match(html, new RegExp('id="' + id + '"'), id);
+  }
+  assert.match(html, /icons\/pig\.png/);
+  assert.match(html, /kid\.js\?v=\d+/);
+  assert.match(html, /vault-local\.js/);
+});
+
+test("v2 kid.js uses the existing ledger API only", () => {
+  const js = read("kid.js");
+  for (const p of ["/api/state", "/api/claim", "/api/exchange/reserve", "/api/exchange/status", "/api/exchange/cancel", "/api/grant", "/api/settings/read", "/api/ledger"]) {
+    assert.ok(js.includes(p), p);
+  }
+  assert.ok(js.includes("is_bonus: true"), "parent bonus is a bonus grant");
+});
+
+test("v2 spend blocks over-balance amounts", () => {
+  const js = read("kid.js");
+  assert.match(js, /n > total/);
+  assert.match(js, /go\.disabled = n < 1 \|\| over/);
+});
+
+test("exchange.html keeps the ids exchange.js needs", () => {
+  const html = read("exchange.html");
+  for (const id of ["gate-dots", "gate-pad", "exHey", "actMask", "actBody", "actClose", "exApprove", "invite-wait", "status"]) {
+    assert.match(html, new RegExp('id="' + id + '"'), id);
+  }
+  assert.equal((html.match(/data-num="/g) || []).length, 10);
 });

@@ -21,11 +21,9 @@
 <title>小豬銀行</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./app.css?v=4"/>
-<link rel="stylesheet" href="./piggy.css?v=28"/>
-<link rel="stylesheet" href="./adventure.css?v=7"/>
-<link rel="preload" href="./icons/coin-sheet.png" as="image"/>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./kid.css?v=1"/>
+<link rel="preload" href="./icons/pig.png?v=3" as="image"/>
 <script src="./config.js?v=1795339000"></script>
 <script>
 (function () {
@@ -73,176 +71,42 @@
 </script>
 </head>
 <body>
-<div class="blobs" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-<div class="hall with-feed is-booting" id="hall">
-  <div class="profile">
-    <div class="boot-mark" aria-hidden="true">
-      <img class="boot-pig" src="./icons/pig.png?v=3" alt=""/>
-    </div>
-    <h1 class="brand">小豬銀行</h1>
-    <p class="status" id="status">正在連接小豬銀行…</p>
-    <div class="invite-wait boot-wait">
-      <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="invite-wait-bar"></div>
-    </div>
-  </div>
-  <div class="invite-panel" id="invite-panel" hidden>
-    <p class="invite-hey">零用錢APP</p>
-    <p class="invite-safari" id="invite-safari" hidden>請用 Safari 打開</p>
-    <button type="button" class="invite-go" id="invite-go">開始</button>
-    <form id="invite-name-form" hidden>
-      <p class="err" id="invite-name-err"></p>
-      <label for="invite-name">你叫什麼</label>
-      <div class="apple-row">
-        <input id="invite-name" autocomplete="nickname" maxlength="20" required/>
-        <button type="submit" class="apple-next" aria-label="繼續">
-          <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="18"/><path d="M15.2 11.5L22.5 18l-7.3 6.5"/></svg>
-        </button>
-      </div>
-    </form>
-    <div class="invite-wait" id="invite-wait" hidden>
-      <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="invite-wait-bar" id="invite-wait-bar"></div>
-    </div>
-  </div>
-  <div class="stage-bg" id="stage-bg" hidden></div>
-  <div class="home-head" id="home-head" hidden>
-    <div class="cab-hud" id="cab-hud" hidden>
-      <div class="cab-wrap">
-        <div class="cab-cover">
-          <div class="cab-ring" aria-hidden="true"></div>
-          <div class="cab-face"><img id="face-img" alt="" src="./face-default.jpg?v=2"/><span class="cab-foil" aria-hidden="true"></span></div>
-          <div class="cab-mask" aria-hidden="true"></div>
-        </div>
-        <div id="album-settings" class="album-settings">
-          <button type="button" class="ins-icon settings-toggle" aria-label="設定" aria-expanded="false">
-            <span class="ins-ring"></span>
-            <span class="ins-face">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.6 3.8l.6-1.3h3.6l.6 1.3 1.6.7 1.4-.5 2.5 2.5-.5 1.4.7 1.6 1.3.6v3.6l-1.3.6-.7 1.6.5 1.4-2.5 2.5-1.4-.5-1.6.7-.6 1.3h-3.6l-.6-1.3-1.6-.7-1.4.5-2.5-2.5.5-1.4-.7-1.6-1.3-.6v-3.6l1.3-.6.7-1.6-.5-1.4L6.6 4l1.4.5 1.6-.7z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/><circle cx="12" cy="11.9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-            </span>
-          </button>
-        </div>
-      </div>
-      <p class="reader-name" id="reader-name"></p>
-    </div>
-    <div class="tag-board" id="tag-board" hidden>
-      <div class="mode-bar" id="mode-bar">
-        <button type="button" class="mode-btn is-on" data-mode="bank">銀行</button>
-        <button type="button" class="mode-btn" data-mode="ledger">紀錄</button>
-      </div>
-    </div>
-  </div>
-  <div id="pig-home" class="pig-pager">
-    <div class="pig-track" id="pig-track">
-    <div class="pig-page" data-page="bank">
-    <section id="active-pig">
-      <div class="pig-stage">
-        <span class="pig-ground" aria-hidden="true"></span>
-        <button type="button" class="play-line is-me pig-say" id="claim-bubble" hidden>
-          <span class="play-bubble">
-            <span class="pig-dot" aria-hidden="true"></span>
-            <p id="claim-text">有0筆零用錢可領取</p>
-          </span>
-        </button>
-        <div class="pig-block" id="pig-block">
-          <img class="pig-art" src="./icons/pig.png?v=3" alt=""/>
-        </div>
-        <span class="pig-coins" aria-hidden="true"></span>
-      </div>
-    </section>
-    <section class="piggy-overview" id="pig-overview">
-      <button type="button" class="money-hero" id="ovTotal" aria-label="消費">
-        <span class="money-num" id="ovNum"><span class="money-digits">0</span></span>
-      </button>
-      <button type="button" class="adventure-launch" id="adventure-open">
-        <span class="adventure-launch-mark">進入</span>
-        <span><strong>探險模式</strong><small>打怪賺零用錢</small></span>
-        <span class="adventure-launch-arrow" aria-hidden="true">›</span>
-      </button>
-    </section>
-    </div>
-    <div class="pig-page" data-page="ledger">
-      <div class="feed news-list" id="ledger"></div>
-    </div>
-    </div>
-    <div class="page-dots" id="page-dots" aria-label="兩頁">
-      <span class="is-on"></span>
-      <span></span>
-    </div>
-  </div>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+<div class="boot" id="boot">
+  <div><img src="./icons/pig.png?v=3" alt=""/><p id="boot-text">小豬醒來中…</p></div>
 </div>
-<section class="adventure-screen" id="adventure-screen" hidden aria-label="森林探險模式">
-  <header class="adventure-topbar">
-    <button type="button" class="ins-icon nav-back" id="adventure-close" aria-label="返回銀行">
-      <span class="ins-ring" aria-hidden="true"></span>
-      <span class="ins-face" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M15.5 4.5 8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+<main class="app" id="app" hidden>
+  <header class="top">
+    <span class="avatar"><img id="face" src="./face-default.jpg?v=2" alt=""/></span>
+    <div class="hello"><small>小豬銀行</small><b id="who"></b></div>
+    <button type="button" class="round" id="parent-btn" aria-label="家長">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8.3 10.5V8a3.7 3.7 0 0 1 7.4 0v2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="15.2" r="1.4" fill="currentColor"/></svg>
     </button>
-    <div class="adventure-title"><span>今天的探險</span><strong id="adventure-room-title">第 1 波</strong></div>
-    <div class="player-hp" id="player-hp" aria-label="生命"><i></i><i></i><i></i><i></i><i></i></div>
-    <div class="adventure-progress-group">
-      <div class="adventure-coins"><img src="./icons/coin.png" alt=""/><span id="adventure-earned">0 / 30 元</span></div>
-    </div>
-    <button type="button" class="adventure-sound" id="adventure-sound" aria-label="音效開啟">音效 開</button>
   </header>
-  <div class="battle-board" id="battle-board">
-    <div class="enemy-area" id="enemy-area" aria-label="怪物"></div>
-    <div class="hand-area" id="hand-area" aria-label="手牌"></div>
-    <svg class="target-arrow" id="target-arrow" hidden aria-hidden="true">
-      <path id="target-arrow-path"/>
-      <polygon id="target-arrow-head"/>
-    </svg>
-    <div class="battle-banner" id="battle-banner" hidden></div>
-  </div>
-</section>
-<aside class="photo-rail" id="photo-rail" hidden aria-label="撲滿操作"></aside>
-<input id="cover-input" type="file" accept="image/*" hidden/>
-<input id="backdrop-input" type="file" accept="image/*" hidden/>
-<div class="batch-tag-mask" id="actMask" hidden>
-  <div class="batch-tag-sheet" id="actSheet">
-    <div class="batch-tag-head">
-      <p id="actTitle">設定</p>
-      <button type="button" class="batch-tag-close" id="actClose" aria-label="關閉">×</button>
+  <section class="stage">
+    <div class="pig-wrap" id="pig-wrap">
+      <span class="pig-shadow"></span>
+      <button type="button" class="pig" id="pig" aria-label="摸摸小豬"><img src="./icons/pig.png?v=3" alt=""/></button>
     </div>
-    <div id="actBody"></div>
-  </div>
-</div>
-<div class="batch-tag-mask" id="waitMask" hidden>
-  <div class="batch-tag-sheet is-wait" id="waitSheet">
-    <div class="batch-tag-head">
-      <p id="waitTitle">更換背景中</p>
-    </div>
-    <p class="wait-pct" id="waitPct">0%</p>
-    <div class="thinking-five" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-  </div>
-</div>
-<div class="batch-tag-mask" id="exchange-sheet" hidden>
-  <div class="batch-tag-sheet" id="exchangeSheet">
-    <div class="batch-tag-head">
-      <p id="exTitle">消費</p>
-      <button type="button" class="batch-tag-close" id="exClose" aria-label="關閉">×</button>
-    </div>
-    <div id="exchange-tray"></div>
-    <button type="button" class="tag-apply" id="exApply" hidden><span class="tag-apply-face">確認</span></button>
-  </div>
-</div>
-<div class="ask-mask" id="askMask" hidden>
-  <div class="ask-card" role="dialog" aria-modal="true">
-    <p id="askText">確認這件事</p>
-    <div class="ask-actions">
-      <button type="button" class="ask-no" id="askNo">取消</button>
-      <button type="button" class="ask-yes" id="askYes" hidden>丟掉</button>
-      <button type="button" class="tag-apply" id="askOk"><span class="tag-apply-face">確認</span></button>
-    </div>
-  </div>
-</div>
-<div class="home-install" id="home-install" hidden>
-  <p>請點底部分享，再選加入主畫面</p>
-  <button type="button" class="invite-go" id="home-installed">我已加入</button>
-</div>
+    <span class="balance-label">小豬裡有</span>
+    <button type="button" class="balance" id="balance" aria-label="存款"><span id="bal-num">0</span><span class="unit">元</span></button>
+  </section>
+  <section class="actions">
+    <button type="button" class="big claim" id="claim" hidden>
+      <img src="./icons/coin.png" alt=""/><span id="claim-text">領取</span><span class="count" id="claim-count" hidden></span>
+    </button>
+    <div class="wait-card" id="wait-card" hidden>下次零用錢 <b id="wait-clock">--:--:--</b></div>
+    <button type="button" class="big spend" id="spend">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8.5h11l-1 11h-9l-1-11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.3 8.5V7a2.7 2.7 0 0 1 5.4 0v1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      我要買東西
+    </button>
+    <button type="button" class="ledger-btn" id="ledger-btn">看存錢紀錄 ›</button>
+  </section>
+</main>
+<canvas class="fx" id="fx" aria-hidden="true"></canvas>
 <script src="./gate.js?v=5"></script>
 <script src="./qrcode.js?v=1"></script>
 <script src="./vault-local.js?v=7"></script>
-<script src="./door.js?v=47"></script>
-<script src="./adventure.js?v=8"></script>
+<script src="./kid.js?v=1"></script>
 </body>
 </html>
