@@ -9,10 +9,10 @@ alwaysApply: true
 
 ```
 git subtree split --prefix web
-git push origin <sha>:gh-pages
+git push origin <sha>:refs/heads/gh-pages
 ```
 
 - Pages：https://weslie4436.github.io/piggybank/
-- 保險庫：`python -m piggybank vault`（埠 8771）
-- 隧道 origin 寫在 `web/config.js` 的 `window.VAULT_ORIGIN`
-- 不提交 `data/`、SQLite、PIN、個人鑰匙
+- 保險庫在瀏覽器（`web/vault-local.js`），不必 PC、不必隨道
+- `window.VAULT_ORIGIN` 保持空字串；禁止 keep_vault 再寫入 trycloudflare
+- 不提交 `data/`、SQLite、PIN、個人鑰匙明文

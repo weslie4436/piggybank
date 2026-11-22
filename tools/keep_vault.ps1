@@ -147,7 +147,7 @@ function Publish-Origin([string]$Origin) {
   $afterPush = {
     $sha = git subtree split --prefix web
     if ($LASTEXITCODE -ne 0 -or -not $sha) { return $false }
-    git push origin ($sha + ":gh-pages")
+    git push origin ($sha + ":refs/heads/gh-pages")
     if ($LASTEXITCODE -ne 0) { return $false }
     return $true
   }
@@ -158,6 +158,9 @@ function Publish-Origin([string]$Origin) {
     -WriteConfig $writeConfig `
     -AfterPush $afterPush
 }
+
+Write-Keep "pages-local vault, keeper disabled"
+exit 0
 
 Write-Keep "keep_vault start"
 while ($true) {

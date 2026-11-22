@@ -872,17 +872,23 @@
     if (bar) bar.setAttribute("content", colors[id]);
   }
 
-  function portraitUrl(kind, rev) {
-    return window.FamiGate.origin() + "/" + kind + "?k=" + encodeURIComponent(key) + "&r=" + (rev || 0);
-  }
-
   function paintCover(reader) {
     if (!faceImg) return;
-    const next = reader && reader.has_cover
-      ? portraitUrl("cover", reader.cover_rev)
-      : "./face-default.jpg?v=2";
-    if (faceImg.getAttribute("src") !== next) faceImg.src = next;
+    if (!(reader && reader.has_cover)) {
+      const fallback = "./face-default.jpg?v=2";
+      if (faceImg.getAttribute("src") !== fallback) faceImg.src = fallback;
+      faceImg.hidden = false;
+      return;
+    }
     faceImg.hidden = false;
+    if (window.PiggyLocal && window.PiggyLocal.portraitUrl) {
+      window.PiggyLocal.portraitUrl("cover", key).then(function (url) {
+        if (url && faceImg.getAttribute("src") !== url) faceImg.src = url;
+      });
+      return;
+    }
+    const next = window.FamiGate.origin() + "/cover?k=" + encodeURIComponent(key) + "&r=" + (reader.cover_rev || 0);
+    if (faceImg.getAttribute("src") !== next) faceImg.src = next;
   }
 
   function tuneNameOnBackdrop(url) {
@@ -917,15 +923,22 @@
   function paintStage(reader) {
     if (!stageBg || !hall) return;
     if (reader && reader.has_backdrop) {
-      const url = portraitUrl("backdrop", reader.backdrop_rev);
-      hall.classList.add("has-backdrop");
-      stageBg.style.backgroundImage = "url(\"" + url + "\")";
-      stageBg.hidden = false;
-      if (readerName) readerName.classList.add("is-on-dark");
-      requestAnimationFrame(function () {
-        layoutStage();
-        tuneNameOnBackdrop(url);
-      });
+      function applyBackdrop(url) {
+        if (!url) return;
+        hall.classList.add("has-backdrop");
+        stageBg.style.backgroundImage = "url(\"" + url + "\")";
+        stageBg.hidden = false;
+        if (readerName) readerName.classList.add("is-on-dark");
+        requestAnimationFrame(function () {
+          layoutStage();
+          tuneNameOnBackdrop(url);
+        });
+      }
+      if (window.PiggyLocal && window.PiggyLocal.portraitUrl) {
+        window.PiggyLocal.portraitUrl("backdrop", key).then(applyBackdrop);
+        return;
+      }
+      applyBackdrop(window.FamiGate.origin() + "/backdrop?k=" + encodeURIComponent(key) + "&r=" + (reader.backdrop_rev || 0));
       return;
     }
     hall.classList.remove("has-backdrop");
@@ -1622,7 +1635,7 @@
     if (busy) return;
     busy = true;
     startWaitCardPct();
-    showWaitCard("產生 QR 中");
+    showWaitCard("準備消費中");
     try {
       const x = await api("/api/exchange/reserve", {
         method: "POST",
@@ -1635,7 +1648,7 @@
         timeout: 15000,
       });
       if (!x.res || !x.res.ok || !x.j) {
-        if (err) err.textContent = (x.j && x.j.message) || "還沒能產生 QR";
+        if (err) err.textContent = (x.j && x.j.message) || "還沒能開始消費";
         return;
       }
       const mask = document.getElementById("exchange-sheet");
@@ -1659,19 +1672,64 @@
   function paintQr(result) {
     const tray = document.getElementById("exchange-tray");
     const title = document.getElementById("exTitle");
-    if (title) title.textContent = "請給父母掃";
+    if (title) title.textContent = "請父母輸入密碼";
     if (!tray) return;
     tray.innerHTML = "";
     exToken = result.token || "";
-    const img = document.createElement("img");
-    img.className = "ex-qr";
-    img.alt = "消費 QR";
-    img.src = window.FamiGate.origin() + "/api/exchange/qr.svg?x=" + encodeURIComponent(result.token) + "&k=" + encodeURIComponent(key);
-    tray.appendChild(img);
-    const note = document.createElement("p");
-    note.className = "ex-note";
-    note.textContent = "尚未扣款，關閉即可反悔";
-    tray.appendChild(note);
+    const amt = document.createElement("p");
+    amt.className = "money-hero";
+    amt.textContent = (result.requested_amount || exAmount) + " 元";
+    tray.appendChild(amt);
+    const hint = document.createElement("p");
+    hint.className = "ex-note";
+    hint.textContent = "尚未扣款。第一次輸入的六位數會成為家長密碼。";
+    tray.appendChild(hint);
+    pinPad(tray, function (value) {
+      const err = tray.querySelector(".err");
+      if (document.getElementById("parent-note")) return;
+      const row = document.createElement("div");
+      row.className = "apple-row";
+      const input = document.createElement("input");
+      input.id = "parent-note";
+      input.maxLength = 80;
+      input.setAttribute("aria-label", "說明");
+      input.autocomplete = "off";
+      input.placeholder = "說明";
+      row.appendChild(input);
+      tray.appendChild(row);
+      exApplyFace("確認");
+      const btn = document.getElementById("exApply");
+      if (!btn) return;
+      btn.onclick = async function () {
+        if (busy) return;
+        const note = ((input && input.value) || "").trim();
+        if (!note) {
+          if (err) err.textContent = "請填說明";
+          return;
+        }
+        busy = true;
+        showWaitCard("父母核准中");
+        try {
+          const x = await api("/api/exchange/approve", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ x: exToken, pin: value, parent_note: note }),
+            timeout: 20000,
+          });
+          if (!x.res || !x.res.ok || !x.j) {
+            if (err) err.textContent = (x.j && x.j.message) || "PIN 不對";
+            return;
+          }
+          exSettled = true;
+          closeExchange();
+          await loadState(true);
+        } finally {
+          hideWaitCard();
+          busy = false;
+        }
+      };
+      window.setTimeout(function () { input.focus(); }, 50);
+    });
     startPoll(result.id);
   }
 
@@ -1983,17 +2041,16 @@
     try {
       const fd = new FormData();
       fd.append("backdrop", file);
-      await postFile(
-        window.FamiGate.origin() + "/api/backdrop?k=" + encodeURIComponent(key),
-        fd,
-        function (n) {
-          if (waitTimer) {
-            window.clearInterval(waitTimer);
-            waitTimer = 0;
-          }
-          setWaitPct(n);
-        }
-      );
+      await window.FamiGate.api("/api/backdrop", key, {
+        method: "POST",
+        body: fd,
+        timeout: 20000,
+      });
+      if (waitTimer) {
+        window.clearInterval(waitTimer);
+        waitTimer = 0;
+      }
+      setWaitPct(100);
       setWaitPct(100);
       const door = await window.FamiGate.api("/api/door", key, { timeout: 15000 });
       if (door.j && door.j.reader) paintStage(door.j.reader);
