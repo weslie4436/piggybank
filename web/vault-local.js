@@ -274,9 +274,10 @@
       vault = null;
     }
     const cached = await idbGet(db);
-    const githubEmpty = !vault || !Array.isArray(vault.children) || vault.children.length === 0;
-    const cacheHasKids = cached && Array.isArray(cached.children) && cached.children.length > 0;
-    if (githubEmpty && cacheHasKids) {
+    const remoteRev = (vault && vault.revision) || 0;
+    const cacheRev = (cached && cached.revision) || 0;
+    const preferCached = cached && (!vault || cacheRev > remoteRev);
+    if (preferCached) {
       vault = cached;
       if (GH.token) await ghPut(vault);
     }
