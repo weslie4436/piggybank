@@ -33,9 +33,10 @@
     });
   }
   function msgOf(x, fallback) { return (x && x.j && x.j.message) || fallback; }
-  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
+  function buzz(ms) { if (!cool("buzz", 60)) return; try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
   const sounds = {};
   function play(name) {
+    if (!cool("snd:" + name, 70)) return;
     try {
       const pool = sounds[name] || (sounds[name] = []);
       let a = pool.find(function (s) { return s.paused || s.ended; });
@@ -50,12 +51,21 @@
       if (p && p.catch) p.catch(function () {});
     } catch (e) {}
   }
+  /* 連點防護：同一個效果在冷卻時間內只跑一次 */
+  const lastRun = Object.create(null);
+  function cool(name, ms) {
+    const t = performance.now();
+    if (lastRun[name] && t - lastRun[name] < ms) return false;
+    lastRun[name] = t;
+    return true;
+  }
   function retrigger(el, cls) {
     el.classList.remove(cls);
     void el.offsetWidth;
     el.classList.add(cls);
   }
   function say(list, text) {
+    if (!text && !cool("say", 900)) return;
     const old = pigWrap.querySelector(".pig-say");
     if (old) old.remove();
     const b = document.createElement("div");
@@ -65,6 +75,7 @@
     setTimeout(function () { b.remove(); }, 2700);
   }
   function toast(big, small) {
+    document.querySelectorAll(".toast").forEach(function (o) { o.remove(); });
     const t = document.createElement("div");
     t.className = "toast";
     t.textContent = big;
@@ -106,17 +117,24 @@
 
   /* ---------- 彩帶粒子 ---------- */
   const ctx = fx.getContext("2d");
+  let dpr = 1;
+  const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   let parts = [];
   let fxRaf = 0;
   function sizeFx() {
-    const r = window.devicePixelRatio || 1;
+    const r = Math.min(2, window.devicePixelRatio || 1);
     fx.width = innerWidth * r;
     fx.height = innerHeight * r;
     ctx.setTransform(r, 0, 0, r, 0, 0);
+    dpr = r;
   }
   sizeFx();
   addEventListener("resize", sizeFx);
+  const MAX_PARTS = 180;
   function confetti(x, y, n, colors) {
+    if (reduced) return;
+    n = Math.min(n, MAX_PARTS);
+    if (parts.length + n > MAX_PARTS) parts.splice(0, parts.length + n - MAX_PARTS);
     const pal = colors || ["#ff5fa2", "#ffc23d", "#2fd3a0", "#7aa8ff", "#b48cff", "#fff"];
     for (let i = 0; i < n; i += 1) {
       const a = Math.random() * Math.PI * 2;
@@ -135,14 +153,14 @@
     parts = parts.filter(function (p) { return p.life > 0 && p.y < innerHeight + 40; });
     parts.forEach(function (p) {
       p.vy += 0.32; p.vx *= 0.985; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life -= 1;
-      ctx.save();
+      const cs = Math.cos(p.r), sn = Math.sin(p.r);
       ctx.globalAlpha = Math.min(1, p.life / 30);
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.r);
+      ctx.setTransform(dpr * cs, dpr * sn, -dpr * sn, dpr * cs, dpr * p.x, dpr * p.y);
       ctx.fillStyle = p.c;
       ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
-      ctx.restore();
     });
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalAlpha = 1;
     fxRaf = parts.length ? requestAnimationFrame(tickFx) : 0;
   }
 
@@ -155,7 +173,7 @@
     const a = center(fromEl);
     const pr = pigWrap.getBoundingClientRect();
     const b = { x: pr.left + pr.width * 0.5, y: pr.top + pr.height * 0.3 };
-    const n = Math.max(3, Math.min(10, count));
+    const n = reduced ? 1 : Math.max(3, Math.min(8, count));
     return new Promise(function (resolve) {
       let landed = 0;
       for (let i = 0; i < n; i += 1) {
@@ -201,6 +219,7 @@
     document.body.appendChild(mask);
     mask._onClose = onClose;
     sheet.querySelector(".x").addEventListener("click", function () { closeSheet(); });
+    lastRun.open = performance.now();
     let down = false;
     mask.addEventListener("pointerdown", function (e) { down = e.target === mask; });
     mask.addEventListener("pointerup", function (e) { if (down && e.target === mask) closeSheet(); down = false; });
@@ -688,19 +707,29 @@
   /* ---------- 小豬互動 ---------- */
   let pokeAt = 0;
   pig.addEventListener("click", function () {
+    if (!cool("poke", 350)) return;
     retrigger(pig, "jiggle");
     buzz(10);
     play("tick");
-    if (Date.now() - pokeAt > 1200) say(SAY_POKE);
+    if (Date.now() - pokeAt > 1500) say(SAY_POKE);
     pokeAt = Date.now();
-    const c = center(pigWrap);
-    confetti(c.x, c.y, 10, ["#ff9ac6", "#ffd1e5", "#fff"]);
+    if (cool("pokeFx", 700)) {
+      const c = center(pigWrap);
+      confetti(c.x, c.y, 8, ["#ff9ac6", "#ffd1e5", "#fff"]);
+    }
   });
-  claimBtn.addEventListener("click", claim);
-  $("spend").addEventListener("click", function () { buzz(10); openSpend(); });
-  $("ledger-btn").addEventListener("click", openLedger);
-  $("parent-btn").addEventListener("click", openParent);
-  balanceEl.addEventListener("click", function () { openSpend(); });
+  function guardOpen(fn) {
+    return function () {
+      if ($("sheet-mask") || claiming || !cool("open", 500)) return;
+      buzz(10);
+      fn();
+    };
+  }
+  claimBtn.addEventListener("click", function () { if (!$("sheet-mask")) claim(); });
+  $("spend").addEventListener("click", guardOpen(openSpend));
+  $("ledger-btn").addEventListener("click", guardOpen(openLedger));
+  $("parent-btn").addEventListener("click", guardOpen(openParent));
+  balanceEl.addEventListener("click", guardOpen(openSpend));
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && key && !$("sheet-mask")) {
