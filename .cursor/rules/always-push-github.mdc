@@ -13,6 +13,6 @@ git push origin <sha>:refs/heads/gh-pages
 ```
 
 - Pages：https://weslie4436.github.io/piggybank/
-- 保險庫在瀏覽器（`web/vault-local.js`），不必 PC、不必隨道
+- 帳本在 GitHub `weslie4436/piggybank-data` 的 `vault.json`；不必 PC、不必隨道
 - `window.VAULT_ORIGIN` 保持空字串；禁止 keep_vault 再寫入 trycloudflare
 - 不提交 `data/`、SQLite、PIN、個人鑰匙明文

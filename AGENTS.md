@@ -9,7 +9,7 @@
 ## 入口與資料邊界
 
 - 唯一使用者入口是 GitHub Pages；桌機、iPad、iPhone 共用同一網址。
-- Pages 只放靜態門面。帳本、PIN、封面存在**這台裝置瀏覽器**（IndexedDB），不必再開家裡電腦、不必隨道。
+- Pages 只放靜態門面。帳本寫在 GitHub 儲庫 `weslie4436/piggybank-data` 的 `vault.json`（Safari 清掉也不會丟）。IndexedDB 只是快取。
 - 禁止把 exe、bat、cmd 當產品入口。
 - `web/vault-local.js` 就是保險庫；`window.VAULT_ORIGIN` 保持空字串。不要再讓 `keep_vault` 覆寫成 trycloudflare。
 
@@ -30,7 +30,7 @@
 
 ## 帳務硬規則
 
-- 瀏覽器裡的帳本是這台裝置的真相；前端動畫不得自行推算最終餘額。
+- GitHub 上的 `vault.json` 是帳本真相；前端動畫不得自行推算最終餘額。
 - 同週期只能領一次、同一筆消費只能完成一次、餘額不得為負。
 - 帳本只追加；更正以反向紀錄完成，不刪改歷史。
 - 日期一律以 Asia/Taipei 判定。
