@@ -224,3 +224,30 @@ test("exchange.html keeps the ids exchange.js needs", () => {
   }
   assert.equal((html.match(/data-num="/g) || []).length, 10);
 });
+
+test("the ledger backs itself up without any account or pasted key", () => {
+  const vault = read("vault-local.js");
+  const cloud = read("cloud.js");
+  const index = read("index.html");
+  assert.doesNotMatch(vault, /Authorization|ghPut|PiggySync/);
+  assert.match(vault, /ensureSynced/);
+  assert.match(vault, /cloudChecked/);
+  assert.match(cloud, /AES-GCM/);
+  for (const name of ["pull", "push", "watch", "serve", "call"]) assert.match(cloud, new RegExp(name + ": " + name));
+  assert.ok(index.indexOf("vendor/schnorr.js") < index.indexOf("cloud.js"));
+  assert.ok(index.indexOf("cloud.js") < index.indexOf("vault-local.js"));
+});
+
+test("the parent phone keeps no ledger and approves through the tunnel", () => {
+  const page = read("exchange.html");
+  const js = read("exchange.js");
+  assert.doesNotMatch(page, /vault-local\.js/);
+  assert.doesNotMatch(js, /FamiGate\.api/);
+  assert.match(js, /PiggyCloud\.call/);
+});
+
+test("a child who restarts a purchase is not stuck behind the old one", () => {
+  const vault = read("vault-local.js");
+  assert.match(vault, /stale\.status = "cancelled"/);
+  assert.match(vault, /exchange\.html\?v=9&x=/);
+});

@@ -9,16 +9,21 @@
 ## 入口與資料邊界
 
 - 唯一使用者入口是 GitHub Pages；桌機、iPad、iPhone 共用同一網址。
-- Pages 只放靜態門面。帳本寫在 GitHub 儲庫 `weslie4436/piggybank-data` 的 `vault.json`（Safari 清掉也不會丟）。IndexedDB 只是快取。
+- Pages 只放靜態門面。**帳本跑在孩子的裝置上**（`web/vault-local.js`＋IndexedDB，開頁立刻可用），每次變動後由 `web/cloud.js` 用入口鑰匙加密，自動備份到 `config.js` 裡 `PIGGY_CLOUD.relays` 列的公開中繼站。Safari 被清掉或換裝置，用同一個 `?k=` 連結就會自動拿回來。不需要任何帳號、權杖，也不需要家裡電腦開著。
+- 家長手機掃 QR 開的 `exchange.html` **不存任何帳**：它透過 `cloud.js` 的核准通道把密碼與備註送到孩子的裝置，由孩子裝置上的帳本驗證、記帳、回覆。所以核准時孩子的畫面要停在 QR 上、兩台都要有網路。
+- 保險：`cloud/archive.mjs`＋`cloud/backup.yml` 是要裝在 `weslie4436/piggybank-data` 的排程（每半小時把加密備份抄進 `backup/`，並補回中繼站）。`cloud.js` 在中繼站找不到時會讀那份。
+- `piggybank-data/vault.json` 是舊的公開帳本，只在裝置完全沒資料時當開戶底稿讀一次，**不再寫入**。不要再做「每台貼 GitHub 權杖」。
 - 禁止把 exe、bat、cmd 當產品入口。
 - `web/vault-local.js` 就是保險庫；`window.VAULT_ORIGIN` 保持空字串。不要再讓 `keep_vault` 覆寫成 trycloudflare。
+- 沒被雲端對過的帳本不准往上寫（`cloudChecked`）：新裝置一定先問雲端，版號（`child.revision`）高的贏。改同步邏輯前先讀 `vault-local.js` 的「雲端備份」段。
 
 ## 門面
 
 - 門面用語與幾何見 skill `fami-shared-ui`；三端細節走 `ios-home-web`。
 - 返回、確認、操作卡、問句卡、齒輪、等待、首頁頭全部沿用共用件。
-- **v2（2026-11-22 起）孩子主畫面＝`web/kid.js`＋`web/kid.css`**；`door.js`／`piggy.css`／`adventure.*` 只剩 `hey.html` 邀請頁在用，主畫面不再載入（探險模式先下架）。
-- 主畫面：大撲滿（點了會 Q 彈說話）＋存款大數字＋金色「領取」大鈕（獎金是紫色）＋粉紅「我要買東西」＋存錢紀錄；右上鎖頭＝家長（PIN → 發額外獎金／每天零用錢）。
+- **v3（2026-11-24 起）孩子主畫面＝`web/kid.js`＋`web/kid.css`**；`door.js`／`piggy.css`／`adventure.*` 只剩 `hey.html` 邀請頁在用，主畫面不再載入（探險模式先下架）。
+- 主畫面：天空＋草地場景，大撲滿站在草地上（點了會 Q 彈、冒愛心；有錢可領時頭上跳金幣，點小豬就等於按領取）＋存款卡（大數字＋用真實面額排出來的硬幣盤）＋金色「領取」大鈕（獎金是紫色）＋粉紅「我要買東西」＋存錢紀錄；右上鎖頭＝家長（PIN → 發額外獎金／每天零用錢）；名字旁的小雲＝雲端備份狀態。
+- 效能守則：動畫只動 transform／opacity；抽屜開著時背景場景暫停（`body.sheet-open`）；中文字用系統字體，只有數字載 Baloo 2。
 - 動畫全部自製（CSS spring、金幣飛行 Web Animations、canvas 彩帶），不加外部套件；尊重 `prefers-reduced-motion`。
 - 家長核准頁 `exchange.html` 沿用 `exchange.js` 邏輯與 id，只換外觀（`kid.css`）。
 - 撲滿與金幣使用使用者提供素材。
@@ -32,7 +37,7 @@
 
 ## 帳務硬規則
 
-- GitHub 上的 `vault.json` 是帳本真相；前端動畫不得自行推算最終餘額。
+- 孩子裝置上的 `vault-local.js` 帳本是真相（雲端是它的加密備份）；畫面與動畫（`kid.js`）不得自行推算最終餘額。
 - 同週期只能領一次、同一筆消費只能完成一次、餘額不得為負。
 - 帳本只追加；更正以反向紀錄完成，不刪改歷史。
 - 日期一律以 Asia/Taipei 判定。
