@@ -89,6 +89,12 @@
     window.setTimeout(function () { input.focus(); }, 50);
   }
 
+  function tunnel(req, timeoutMs) {
+    return window.PiggyCloud.call(token, req, timeoutMs).then(function (r) {
+      return { res: { ok: r.status >= 200 && r.status < 300, status: r.status }, j: r.j };
+    });
+  }
+
   async function resolve() {
     token = new URLSearchParams(location.search).get("x") || "";
     if (!token) {
@@ -96,8 +102,22 @@
       if (padEl) padEl.classList.add("is-off");
       return;
     }
-    const x = await window.FamiGate.api("/api/exchange/resolve?x=" + encodeURIComponent(token), "", { timeout: 15000 });
-    if (!x.res || !x.res.ok || !x.j) {
+    // 帳本在孩子的裝置上；這支手機只是把請求透過雲端通道送過去。
+    let x = null;
+    for (let i = 0; i < 4 && !x; i += 1) {
+      try {
+        x = await tunnel({ path: "resolve" }, 9000);
+      } catch (err) {
+        if (statusEl) statusEl.textContent = "連線中…請讓孩子的畫面停在 QR 碼";
+      }
+    }
+    if (!x) {
+      if (statusEl) statusEl.textContent = "連不上孩子的裝置";
+      if (hey) hey.textContent = "請重掃一次";
+      if (padEl) padEl.classList.add("is-off");
+      return;
+    }
+    if (!x.res.ok || !x.j) {
       if (statusEl) statusEl.textContent = (x.j && x.j.message) || "找不到這筆兌換";
       if (padEl) padEl.classList.add("is-off");
       return;
@@ -125,12 +145,7 @@
     if (actMask) actMask.hidden = true;
     startWait();
     try {
-      const x = await window.FamiGate.api("/api/exchange/approve", "", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ x: token, pin: pin, parent_note: note }),
-        timeout: 20000,
-      });
+      const x = await tunnel({ path: "approve", pin: pin, note: note }, 20000);
       if (!x.res || !x.res.ok || !x.j) {
         stopWait();
         draftNote = note;
@@ -158,6 +173,7 @@
       stopWait();
       resetPin(false);
       if (statusEl) statusEl.textContent = "網路不穩，請再輸入一次密碼";
+      if (hey && exchange) hey.textContent = exchange.requested_amount + " 元";
     } finally {
       busy = false;
     }

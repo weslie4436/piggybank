@@ -21,10 +21,11 @@
 <title>小豬銀行</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./kid.css?v=1"/>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&display=swap" rel="stylesheet"/>
+<link rel="preload" as="image" href="./icons/pig.png?v=3"/>
+<link rel="stylesheet" href="./kid.css?v=3"/>
 <link rel="preload" href="./icons/pig.png?v=3" as="image"/>
-<script src="./config.js?v=1795339000"></script>
+<script src="./config.js?v=1795530000"></script>
 <script>
 (function () {
   var KEY_RE = /^[A-Za-z0-9_-]{8,128}$/;
@@ -78,35 +79,44 @@
 <main class="app" id="app" hidden>
   <header class="top">
     <span class="avatar"><img id="face" src="./face-default.jpg?v=2" alt=""/></span>
-    <div class="hello"><small>小豬銀行</small><b id="who"></b></div>
+    <div class="hello"><small>小豬銀行<span class="cloud-dot" id="cloud-dot" data-state="idle" role="img" aria-label="雲端備份"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 18.5a4.5 4.5 0 0 1-.6-8.96A5.5 5.5 0 0 1 17 8.6a4.95 4.95 0 0 1 .5 9.9H7z"/></svg></span></small><b id="who"></b></div>
     <button type="button" class="round" id="parent-btn" aria-label="家長">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M8.3 10.5V8a3.7 3.7 0 0 1 7.4 0v2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="15.2" r="1.4" fill="currentColor"/></svg>
     </button>
   </header>
   <section class="stage">
-    <div class="pig-wrap" id="pig-wrap">
-      <span class="pig-shadow"></span>
-      <button type="button" class="pig" id="pig" aria-label="摸摸小豬"><img src="./icons/pig.png?v=3" alt=""/></button>
+    <div class="scene">
+      <div class="hill" aria-hidden="true"><b>🌼</b><b>🌷</b><b>🌸</b><b>🌼</b></div>
+      <div class="pig-wrap" id="pig-wrap">
+        <span class="pig-shadow"></span>
+        <button type="button" class="pig" id="pig" aria-label="摸摸小豬"><img src="./icons/pig.png?v=3" alt=""/></button>
+        <span class="perk" id="perk" hidden><img src="./icons/coin.png" alt=""/></span>
+      </div>
     </div>
-    <span class="balance-label">小豬裡有</span>
-    <button type="button" class="balance" id="balance" aria-label="存款"><span id="bal-num">0</span><span class="unit">元</span></button>
+    <div class="money">
+      <span class="balance-label">小豬裡有</span>
+      <button type="button" class="balance" id="balance" aria-label="存款"><span id="bal-num">0</span><span class="unit">元</span></button>
+      <div class="tray" id="tray" aria-hidden="true"></div>
+    </div>
   </section>
   <section class="actions">
     <button type="button" class="big claim" id="claim" hidden>
       <img src="./icons/coin.png" alt=""/><span id="claim-text">領取</span><span class="count" id="claim-count" hidden></span>
     </button>
-    <div class="wait-card" id="wait-card" hidden>下次零用錢 <b id="wait-clock">--:--:--</b></div>
+    <div class="wait-card" id="wait-card" hidden>😴 下次零用錢 <b id="wait-clock">--:--:--</b></div>
     <button type="button" class="big spend" id="spend">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8.5h11l-1 11h-9l-1-11z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9.3 8.5V7a2.7 2.7 0 0 1 5.4 0v1.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
       我要買東西
     </button>
-    <button type="button" class="ledger-btn" id="ledger-btn">看存錢紀錄 ›</button>
+    <button type="button" class="ledger-btn" id="ledger-btn">📒 看存錢紀錄</button>
   </section>
 </main>
 <canvas class="fx" id="fx" aria-hidden="true"></canvas>
 <script src="./gate.js?v=5"></script>
 <script src="./qrcode.js?v=1"></script>
-<script src="./vault-local.js?v=8"></script>
-<script src="./kid.js?v=3"></script>
+<script src="./vendor/schnorr.js?v=1"></script>
+<script src="./cloud.js?v=1"></script>
+<script src="./vault-local.js?v=9"></script>
+<script src="./kid.js?v=4"></script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 /**
- * Pages-only vault. Ledger is a JSON file on GitHub; IndexedDB is just a cache.
+ * Pages-only vault. 帳本規則全在這裡，跑在孩子的裝置上。
+ * 存放：這台的 IndexedDB（立刻可用）＋ cloud.js 的加密雲端備份（換裝置、清 Safari 也拿得回來）。
+ * GitHub 上的舊 vault.json 只在這台完全沒資料時當開戶底稿讀一次，不再寫入。
  */
 (function () {
   const DB_NAME = "piggybank-local";
@@ -8,7 +10,7 @@
   const ALLOWANCE = 30;
   const STARTER_DAYS = 7;
   const PIN_ITERS = 100000;
-  const PAGES = "https://weslie4436.github.io/piggybank";
+  const PAGES = (window.PIGGY_CLOUD && window.PIGGY_CLOUD.pages) || "https://weslie4436.github.io/piggybank";
   const GH = window.GITHUB_VAULT || {};
   const GH_API = "https://api.github.com/repos/"
     + (GH.owner || "weslie4436") + "/"
@@ -23,52 +25,6 @@
     { id: "c469f94cef1303499", display_name: "給給", token_hash: "d2b736b7c7c071b03a67cb3c3c0984f3d0f2796303d698ba5fd619a384879edb", balance: 210 },
     { id: "c15a0e238b8882f07", display_name: "北投大魔王", token_hash: "e963eee3d6969a4d69cbfe3310a9d043f20b7d097a00b9d7e3114d2ee2dc53bf", balance: 1285 },
   ];
-
-  // 每台裝置各自保存的 GitHub 鑰匙（只存在這台的瀏覽器，不進任何儲庫）。
-  const TOKEN_KEY = "piggybank.ghToken";
-  function readStoredToken() {
-    try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (err) { return ""; }
-  }
-  if (!GH.token) GH.token = readStoredToken();
-  window.PiggySync = {
-    has: function () { return !!GH.token; },
-    clear: function () {
-      try { localStorage.removeItem(TOKEN_KEY); } catch (err) {}
-      GH.token = "";
-      mem = null;
-    },
-    // 驗證鑰匙真的能寫這個帳本儲庫，才存下來。
-    set: async function (raw) {
-      const token = String(raw || "").trim();
-      if (!token) return { ok: false, message: "請貼上鑰匙" };
-      let res;
-      try {
-        res = await fetch("https://api.github.com/repos/"
-          + (GH.owner || "weslie4436") + "/" + (GH.repo || "piggybank-data"), {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            Authorization: "Bearer " + token,
-          },
-          cache: "no-store",
-        });
-      } catch (err) {
-        return { ok: false, message: "網路不穩，請再試一次" };
-      }
-      if (res.status === 401) return { ok: false, message: "鑰匙無效或已過期" };
-      if (!res.ok) return { ok: false, message: "這把鑰匙看不到帳本儲庫（" + res.status + "）" };
-      const repo = await res.json();
-      if (!repo.permissions || !repo.permissions.push) {
-        return { ok: false, message: "這把鑰匙沒有寫入權限，請勾 Contents: Read and write" };
-      }
-      try { localStorage.setItem(TOKEN_KEY, token); } catch (err) {
-        return { ok: false, message: "這個瀏覽器不讓存資料（無痕模式？）" };
-      }
-      GH.token = token;
-      mem = null;
-      return { ok: true };
-    },
-  };
 
   let chain = Promise.resolve();
   let dbp = null;
@@ -113,37 +69,14 @@
   }
 
   function ghHeaders() {
-    const h = {
+    return {
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     };
-    if (GH.token) h.Authorization = "Bearer " + GH.token;
-    return h;
-  }
-
-  function utf8ToB64(str) {
-    return btoa(unescape(encodeURIComponent(str)));
   }
 
   function b64ToUtf8(b64) {
     return decodeURIComponent(escape(atob(String(b64 || "").replace(/\s/g, ""))));
-  }
-
-  async function loadGhToken() {
-    if (GH.token) return;
-    const authApi = "https://api.github.com/repos/"
-      + (GH.owner || "weslie4436") + "/"
-      + (GH.repo || "piggybank-data") + "/contents/"
-      + (GH.authPath || "app-auth.json");
-    const res = await fetch(authApi, {
-      headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-      cache: "no-store",
-    });
-    if (!res.ok) return;
-    const doc = await res.json();
-    if (!doc.content) return;
-    const auth = JSON.parse(b64ToUtf8(doc.content));
-    if (auth && auth.token) GH.token = auth.token;
   }
 
   async function ghGet() {
@@ -154,37 +87,6 @@
     ghSha = doc.sha || "";
     if (!doc.content) return null;
     return JSON.parse(b64ToUtf8(doc.content));
-  }
-
-  async function ghPut(vault) {
-    if (!GH.token) throw new Error("missing github token");
-    const body = {
-      message: "vault " + (vault.revision || 0),
-      content: utf8ToB64(JSON.stringify(vault)),
-      branch: GH.branch || "main",
-    };
-    if (ghSha) body.sha = ghSha;
-    let res = await fetch(GH_API, {
-      method: "PUT",
-      headers: Object.assign(ghHeaders(), { "Content-Type": "application/json" }),
-      body: JSON.stringify(body),
-    });
-    if (res.status === 409 || res.status === 422) {
-      const latest = await fetch(GH_API, { headers: ghHeaders(), cache: "no-store" });
-      if (latest.ok) {
-        const doc = await latest.json();
-        ghSha = doc.sha || "";
-        body.sha = ghSha;
-        res = await fetch(GH_API, {
-          method: "PUT",
-          headers: Object.assign(ghHeaders(), { "Content-Type": "application/json" }),
-          body: JSON.stringify(body),
-        });
-      }
-    }
-    if (!res.ok) throw new Error("github put " + res.status);
-    const saved = await res.json();
-    ghSha = (saved.content && saved.content.sha) || saved.sha || ghSha;
   }
 
   function taipeiParts(d) {
@@ -313,6 +215,7 @@
   function normalizeVault(vault) {
     if (!vault.guides) vault.guides = { foot: 88, coin: 22 };
     if (!Array.isArray(vault.children)) vault.children = [];
+    if (!vault.cloudChecked || typeof vault.cloudChecked !== "object") vault.cloudChecked = {};
     return vault;
   }
 
@@ -321,48 +224,239 @@
     if (!vault.inviteTokenHash) vault.inviteTokenHash = await sha256(vault.inviteToken);
   }
 
-  async function loadVault(force) {
-    if (mem && !force) return mem;
-    mem = null;
-    try { await loadGhToken(); } catch (err) {}
+  async function loadVault() {
+    if (mem) return mem;
     const db = await openDb();
-    let vault = null;
-    try {
-      vault = await ghGet();
-    } catch (err) {
-      vault = null;
+    let vault = await idbGet(db);
+    if (!vault) {
+      // 這台沒有資料：拿舊的公開帳本當開戶底稿（邀請碼、開戶名單）。
+      // 個人帳本之後由雲端備份蓋上，所以這裡標成「還沒跟雲端對過」。
+      try { vault = await ghGet(); } catch (err) { vault = null; }
+      if (vault) vault.cloudChecked = {};
     }
-    const cached = await idbGet(db);
-    const remoteRev = (vault && vault.revision) || 0;
-    const cacheRev = (cached && cached.revision) || 0;
-    const preferCached = !force && cached && (!vault || cacheRev > remoteRev);
-    if (preferCached) {
-      vault = cached;
-      if (GH.token) await ghPut(vault);
-    }
-    if (!vault) vault = cached || emptyVault();
+    if (!vault) vault = emptyVault();
     await ensureInvite(vault);
     normalizeVault(vault);
     await idbSet(db, vault);
     mem = { db: db, vault: vault };
+    vault.children.forEach(rememberSig);
     return mem;
   }
 
   async function saveVault(db, vault) {
     vault.revision = (vault.revision || 0) + 1;
-    if (!GH.token) {
-      try { await loadGhToken(); } catch (err) {}
-    }
-    if (GH.token) {
-      try {
-        await ghPut(vault);
-      } catch (err) {
-        mem = null;
-        throw err;
-      }
-    }
+    // 任何內容變了就要有新版號，雲端才分得出新舊（例如第一次設定家長密碼）。
+    vault.children.forEach(function (child) {
+      const prev = savedSig.get(child.tokenHash);
+      if (prev && prev.rev === child.revision && prev.sig !== JSON.stringify(child)) bump(child);
+      rememberSig(child);
+    });
     await idbSet(db, vault);
     mem = { db: db, vault: vault };
+    queuePush();
+  }
+
+  /* ---------- 雲端備份（cloud.js） ---------- */
+  const Cloud = window.PiggyCloud || null;
+  const savedSig = new Map();   // tokenHash -> { rev, sig }：上次存檔時的樣子
+  const pushedSig = new Map();  // tokenHash -> 上次成功送上雲端的內容
+  const keyOf = new Map();      // tokenHash -> 入口鑰匙（這次開頁用過的）
+  const bootPulled = new Set();
+  const watching = new Set();
+  let pushTimer = 0;
+  let pushBusy = false;
+  let pushAgain = false;
+  let pushFails = 0;
+  let cloudState = "idle";      // idle | saving | saved | waiting
+
+  function rememberSig(child) {
+    savedSig.set(child.tokenHash, { rev: child.revision, sig: JSON.stringify(child) });
+  }
+
+  function announce(kind) {
+    if (kind !== "updated") cloudState = kind;
+    try { window.dispatchEvent(new CustomEvent("piggy:cloud", { detail: { kind: kind } })); } catch (err) {}
+  }
+
+  /** 雲端比這台新才換上；回傳有沒有換。 */
+  function adopt(vault, digest, got) {
+    if (!got || got.state !== "found" || !got.child) return false;
+    const local = findByHash(vault, digest);
+    if (local && (local.revision || 0) >= (got.rev || 0)) return false;
+    const child = got.child;
+    child.tokenHash = digest;
+    const at = local ? vault.children.indexOf(local) : -1;
+    if (at >= 0) vault.children[at] = child;
+    else vault.children.push(child);
+    rememberSig(child);
+    pushedSig.set(digest, JSON.stringify(child));
+    return true;
+  }
+
+  /** 把一次「問雲端」的結果套到這台。必須在排隊裡呼叫。 */
+  async function applyPull(db, vault, digest, got) {
+    if (!got || got.state === "unknown") {
+      // 連不上：不能下結論，等等再問；在那之前這台不會往雲端寫
+      setTimeout(function () { backgroundPull(digest); }, 20000);
+      return false;
+    }
+    const adopted = adopt(vault, digest, got);
+    const first = !vault.cloudChecked[digest];
+    vault.cloudChecked[digest] = 1;
+    const local = findByHash(vault, digest);
+    if (!adopted && got.state === "found" && local && local.revision === got.rev) {
+      pushedSig.set(digest, JSON.stringify(local));
+      if (cloudState !== "saved") announce("saved");
+    }
+    if (adopted || first) await idbSet(db, vault);
+    if (adopted) { cloudState = "saved"; announce("updated"); }
+    queuePush();
+    return adopted;
+  }
+
+  function backgroundPull(digest) {
+    const key = keyOf.get(digest);
+    if (!Cloud || !key) return;
+    Cloud.pull(key, 6000).then(function (got) {
+      return enqueue(async function () {
+        const loaded = await loadVault();
+        await applyPull(loaded.db, loaded.vault, digest, got);
+      });
+    }).catch(function () {});
+  }
+
+  /** 每個帶鑰匙的請求都會經過這裡：確保這台的帳本跟雲端對過。 */
+  async function ensureSynced(db, vault, key, digest) {
+    if (!Cloud || !key) return;
+    keyOf.set(digest, key);
+    const local = findByHash(vault, digest);
+    if (!vault.cloudChecked[digest] || !local) {
+      if (!bootPulled.has(digest)) {
+        // 第一次用這把鑰匙（或 Safari 被清過）：先問雲端再開始，才不會拿舊資料蓋掉新的
+        bootPulled.add(digest);
+        let got = null;
+        try { got = await Cloud.pull(key, local ? 4000 : 7000); } catch (err) {}
+        await applyPull(db, vault, digest, got);
+      }
+    } else if (!bootPulled.has(digest)) {
+      bootPulled.add(digest);
+      backgroundPull(digest);
+    }
+    if (!watching.has(digest)) {
+      watching.add(digest);
+      Cloud.watch(key, function (doc) {
+        enqueue(async function () {
+          const loaded = await loadVault();
+          await applyPull(loaded.db, loaded.vault, digest, { state: "found", rev: doc.rev, child: doc.child });
+        });
+      }).catch(function () { watching.delete(digest); });
+    }
+  }
+
+  function queuePush() {
+    if (!Cloud) return;
+    if (pushBusy) { pushAgain = true; return; }
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(flushPush, 400);
+  }
+
+  async function flushPush() {
+    if (pushBusy || !mem) return;
+    pushBusy = true;
+    pushAgain = false;
+    let failed = false;
+    let sent = false;
+    try {
+      const vault = mem.vault;
+      const jobs = [];
+      keyOf.forEach(function (key, digest) {
+        if (!vault.cloudChecked[digest]) return;
+        const child = findByHash(vault, digest);
+        if (!child) return;
+        const sig = JSON.stringify(child);
+        if (pushedSig.get(digest) === sig) return;
+        jobs.push({ key: key, digest: digest, sig: sig });
+      });
+      if (jobs.length) announce("saving");
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        let ok = false;
+        try { ok = await Cloud.push(job.key, JSON.parse(job.sig)); } catch (err) { ok = false; }
+        if (ok) { pushedSig.set(job.digest, job.sig); sent = true; }
+        else failed = true;
+      }
+    } finally {
+      pushBusy = false;
+    }
+    if (failed) {
+      pushFails = Math.min(pushFails + 1, 5);
+      announce("waiting");
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(flushPush, 4000 * Math.pow(2, pushFails - 1));
+      return;
+    }
+    pushFails = 0;
+    if (sent) announce("saved");
+    if (pushAgain) queuePush();
+  }
+
+  window.addEventListener("online", queuePush);
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) return;
+    queuePush();
+    // 回到畫面時看看別台有沒有動過
+    keyOf.forEach(function (key, digest) { backgroundPull(digest); });
+  });
+
+  /* ---------- 核准通道：家長手機 → 這台 ---------- */
+  const serving = new Map();    // 兌換代碼 -> 關閉函式
+  const closing = new Set();
+
+  function serveExchange(ex) {
+    if (!Cloud || !ex || !ex.token || serving.has(ex.token)) return;
+    const token = ex.token;
+    serving.set(token, null);
+    function run(path, opts) {
+      return window.PiggyLocal.handle(path, "", opts).then(function (x) {
+        return { status: x.res.status, j: x.j };
+      });
+    }
+    Cloud.serve(token, function (msg) {
+      // 手機只能做兩件事：看這一筆、核准這一筆
+      if (msg.path === "resolve") {
+        return run("/api/exchange/resolve?x=" + encodeURIComponent(token), { method: "GET" });
+      }
+      if (msg.path === "approve") {
+        return run("/api/exchange/approve", {
+          method: "POST",
+          body: { x: token, pin: String(msg.pin || ""), parent_note: String(msg.note || "") },
+        });
+      }
+      return { status: 404, j: { error: "not_found", message: "不支援的操作" } };
+    }).then(function (close) {
+      if (serving.has(token)) serving.set(token, close);
+      else close();
+    }).catch(function () { serving.delete(token); });
+  }
+
+  function stopServing(token) {
+    const close = serving.get(token);
+    serving.delete(token);
+    closing.delete(token);
+    if (close) close();
+  }
+
+  function refreshServing(child) {
+    (child.exchanges || []).forEach(function (ex) {
+      if (!ex.token) return;
+      if (ex.status === "pending") serveExchange(ex);
+      else if (serving.has(ex.token) && !closing.has(ex.token)) {
+        // 留幾秒讓「已核准」的回覆送到手機
+        const token = ex.token;
+        closing.add(token);
+        setTimeout(function () { stopServing(token); }, 8000);
+      }
+    });
   }
 
   function bump(child) {
@@ -934,13 +1028,14 @@
     const path = parsed.path;
     const q = parsed.q;
     const now = taipeiNow();
-    try { await loadGhToken(); } catch (err) {}
-    const refresh = !!GH.token && (
-      path === "/api/exchange/resolve" || path === "/api/exchange/status" || path === "/api/exchange/approve"
-    );
-    const loaded = await loadVault(refresh);
+    const loaded = await loadVault();
     const db = loaded.db;
     const vault = loaded.vault;
+    // 邀請鑰匙不是個人帳本，不用跟雲端對
+    if (key && path !== "/api/join") {
+      const keyDigest = await sha256(key);
+      if (keyDigest !== vault.inviteTokenHash) await ensureSynced(db, vault, key, keyDigest);
+    }
     let body = {};
     let dirty = false;
     try {
@@ -1079,6 +1174,7 @@
         delete vault._created;
       }
       if (expireExchanges(child, now)) dirty = true;
+      refreshServing(child);
 
       if (path === "/api/state" && method === "GET") {
         return finish(stateOf(vault, child, now));
@@ -1180,7 +1276,16 @@
         if (!note || note.length > 80) return fail(400, "validation_error", "child_note must contain 1 to 80 characters");
         const pig = livePig(child);
         if (!pig) return domain("pig_not_breakable", "目前無法消費");
-        if (pig.status === "reserved") return domain("pig_reserved", "這筆消費還在等待父母核准");
+        if (pig.status === "reserved") {
+          // 上一筆還掛著（例如畫面被關掉、重新整理）：孩子重新開始，就以新的這筆為準
+          const stale = (child.exchanges || []).find(function (e) {
+            return e.id === pig.reserved_exchange_id && e.status === "pending";
+          });
+          if (!stale) return domain("pig_reserved", "這筆消費還在等待父母核准");
+          stale.status = "cancelled";
+          pig.status = "growing";
+          pig.reserved_exchange_id = null;
+        }
         if (pig.value < amount) return domain("insufficient_pigs", "錢包金額不足");
         const token = newToken();
         const ex = {
@@ -1202,6 +1307,7 @@
         pig.reserved_exchange_id = ex.id;
         child.exchanges.push(ex);
         bump(child);
+        serveExchange(ex);   // QR 一出現就開始等家長手機
         return ok({
           revision: child.revision,
           id: ex.id,
@@ -1212,7 +1318,7 @@
           change_amount: ex.change_amount,
           pig_ids: [pig.id],
           bonus_pages_at_risk: [],
-          qr_url: PAGES + "/exchange.html?x=" + encodeURIComponent(token),
+          qr_url: PAGES + "/exchange.html?v=9&x=" + encodeURIComponent(token),
         });
       }
 
@@ -1397,6 +1503,8 @@
   }
 
   window.PiggyLocal = {
+    /** 雲端備份狀態：idle（還沒動過）｜saving｜saved｜waiting（連不上，稍後自動重試） */
+    cloud: function () { return Cloud ? cloudState : "off"; },
     handle: function (path, key, opts) {
       return enqueue(function () { return handleInner(path, key, opts || {}); });
     },

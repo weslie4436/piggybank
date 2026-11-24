@@ -1,4 +1,4 @@
-/* 小豬銀行 v2 孩子主畫面。帳本規則全在 vault-local.js，這裡只負責畫面與動畫。 */
+/* 小豬銀行 v3 孩子主畫面。帳本規則全在 vault-local.js，這裡只負責畫面與動畫。 */
 (function () {
   "use strict";
   const $ = function (id) { return document.getElementById(id); };
@@ -12,6 +12,9 @@
   const waitCard = $("wait-card");
   const waitClock = $("wait-clock");
   const fx = $("fx");
+  const tray = $("tray");
+  const perk = $("perk");
+  const cloudDot = $("cloud-dot");
   const SAY_HAPPY = ["好飽～", "謝謝你！", "存起來囉", "噗噗！", "我變胖了"];
   const SAY_POKE = ["嘿嘿", "好癢！", "噗～", "要存錢喔", "今天好嗎？"];
   let key = "";
@@ -21,6 +24,7 @@
   let claiming = false;
   let clockTimer = 0;
   let parentPin = "";
+  const reduced = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   /* ---------- 基礎 ---------- */
   function api(path, opts) { return window.FamiGate.api(path, key, opts || {}); }
@@ -88,11 +92,67 @@
     setTimeout(function () { t.remove(); }, 2300);
   }
 
+  /* ---------- 硬幣盤：把存款排成真的鈔票和硬幣 ---------- */
+  const DENOMS = [1000, 500, 100, 50, 10, 5, 1];
+  let trayOf = -1;
+  function paintTray(total) {
+    if (!tray || total === trayOf) return;
+    trayOf = total;
+    tray.textContent = "";
+    let left = Math.max(0, Math.floor(total) || 0);
+    let shownGroups = 0;
+    DENOMS.forEach(function (d) {
+      const n = Math.floor(left / d);
+      if (!n) return;
+      left -= n * d;
+      const g = document.createElement("span");
+      g.className = "tk" + (d >= 100 ? " bill" : "");
+      g.dataset.d = String(d);
+      g.style.animationDelay = shownGroups * 60 + "ms";
+      const face = document.createElement("i");
+      face.textContent = String(d);
+      g.appendChild(face);
+      if (n > 1) {
+        const times = document.createElement("em");
+        times.textContent = "×" + n;
+        g.appendChild(times);
+      }
+      tray.appendChild(g);
+      shownGroups += 1;
+    });
+  }
+  function hearts(x, y) {
+    if (reduced || !cool("hearts", 450)) return;
+    ["💗", "💕", "💖"].forEach(function (h, i) {
+      const el = document.createElement("span");
+      el.className = "heart";
+      el.textContent = h;
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.setProperty("--dx", (i - 1) * 46 + (Math.random() - .5) * 20 + "px");
+      el.style.animationDelay = i * 90 + "ms";
+      document.body.appendChild(el);
+      setTimeout(function () { el.remove(); }, 1300 + i * 90);
+    });
+  }
+  function plusOne(text, bonus) {
+    document.querySelectorAll(".plus").forEach(function (o) { o.remove(); });
+    const r = pigWrap.getBoundingClientRect();
+    const el = document.createElement("div");
+    el.className = "plus" + (bonus ? " bonus" : "");
+    el.textContent = text;
+    el.style.left = r.left + r.width / 2 + "px";
+    el.style.top = r.top + r.height * .25 + "px";
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 1300);
+  }
+
   /* ---------- 數字滾動 ---------- */
   let rollRaf = 0;
   function rollTo(target, ms) {
     cancelAnimationFrame(rollRaf);
     const from = shown;
+    paintTray(target);
     if (from === target) { balNum.textContent = String(target); return; }
     const t0 = performance.now();
     const dur = ms || Math.min(1400, 400 + Math.abs(target - from) * 12);
@@ -118,7 +178,6 @@
   /* ---------- 彩帶粒子 ---------- */
   const ctx = fx.getContext("2d");
   let dpr = 1;
-  const reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
   let parts = [];
   let fxRaf = 0;
   function sizeFx() {
@@ -217,6 +276,7 @@
     sheet.querySelector("h2").textContent = title;
     mask.appendChild(sheet);
     document.body.appendChild(mask);
+    document.body.classList.add("sheet-open");
     mask._onClose = onClose;
     sheet.querySelector(".x").addEventListener("click", function () { closeSheet(); });
     lastRun.open = performance.now();
@@ -251,6 +311,7 @@
     const mask = $("sheet-mask");
     if (!mask) return;
     mask.id = "";
+    document.body.classList.remove("sheet-open");
     const cb = mask._onClose;
     if (cb) cb();
     if (now) { mask.remove(); return; }
@@ -328,6 +389,7 @@
   function paintClaim() {
     const q = queue();
     const first = q[0];
+    if (perk) perk.hidden = !first;
     if (!first) {
       claimBtn.hidden = true;
       waitCard.hidden = false;
@@ -405,7 +467,8 @@
       const c = center(pigWrap);
       confetti(c.x, c.y - 40, next.is_bonus ? 140 : 70);
       say(SAY_HAPPY);
-      toast("+" + next.amount + " 元", next.is_bonus ? (next.note || "特別獎金") : "存進小豬了！");
+      plusOne("+" + next.amount, !!next.is_bonus);
+      if (next.is_bonus) toast("🎁 " + next.amount + " 元獎金", next.note || "特別獎金");
     } finally {
       claiming = false;
     }
@@ -418,6 +481,7 @@
     let token = "";
     let settled = false;
     let poll = 0;
+    let linkTimer = 0;
     const total = snapshot.total || 0;
     openSheet("要花多少？", function (body) {
       const amt = document.createElement("p");
@@ -483,7 +547,9 @@
       });
     }, function () {
       if (poll) clearInterval(poll);
+      if (linkTimer) clearInterval(linkTimer);
       poll = 0;
+      linkTimer = 0;
       if (token && !settled) {
         const t = token;
         token = "";
@@ -498,7 +564,7 @@
       box.className = "qr-box";
       const img = document.createElement("img");
       img.alt = "消費 QR";
-      const link = res.qr_url || ("https://weslie4436.github.io/piggybank/exchange.html?x=" + encodeURIComponent(res.token));
+      const link = res.qr_url || ("https://weslie4436.github.io/piggybank/exchange.html?v=9&x=" + encodeURIComponent(res.token));
       const qr = window.qrcode(0, "M");
       qr.addData(link);
       qr.make();
@@ -511,8 +577,17 @@
       body.appendChild(a);
       const w = document.createElement("p");
       w.className = "qr-wait";
-      w.innerHTML = '等爸媽同意 <span class="dots3"><i></i><i></i><i></i></span>';
       body.appendChild(w);
+      // 爸媽的手機要透過網路找到這台；沒連上就先講清楚
+      function paintLink() {
+        const up = !window.PiggyCloud || window.PiggyCloud.live() > 0;
+        w.classList.toggle("off", !up);
+        w.innerHTML = up
+          ? '等爸媽同意 <span class="dots3"><i></i><i></i><i></i></span>'
+          : "連線中…請確認有網路";
+      }
+      paintLink();
+      linkTimer = setInterval(paintLink, 1500);
       const note = document.createElement("p");
       note.className = "qr-note";
       note.textContent = "還沒扣錢，關掉就取消";
@@ -600,10 +675,13 @@
       m.className = "menu";
       m.appendChild(item("🎁", "發額外獎金", "孩子打開時會有特別慶祝", openGrant));
       m.appendChild(item("🪙", "每天零用錢", "目前每天 " + ((parentRule && parentRule.amount) || 30) + " 元", openAllowance));
-      const synced = window.PiggySync && window.PiggySync.has();
-      m.appendChild(item(synced ? "☁️" : "⚠️", "雲端帳本", synced ? "這台已連上，換台裝置也不會丟" : "這台還沒連上，點這裡貼鑰匙", function () {
-        location.href = "./sync.html?back=" + encodeURIComponent(location.href);
-      }));
+      const state = window.PiggyLocal && window.PiggyLocal.cloud ? window.PiggyLocal.cloud() : "off";
+      const note = document.createElement("div");
+      note.className = "menu-note" + (state === "waiting" ? " wait" : "");
+      note.textContent = state === "waiting"
+        ? "☁️ 雲端備份：等網路中，連上會自動補存"
+        : "☁️ 雲端備份：自動進行，換裝置用同一個連結就能拿回來";
+      m.appendChild(note);
       body.appendChild(m);
     });
     function item(ic, t, s, fn) {
@@ -711,16 +789,15 @@
   /* ---------- 小豬互動 ---------- */
   let pokeAt = 0;
   pig.addEventListener("click", function () {
+    if (queue()[0] && !$("sheet-mask")) { claim(); return; }
     if (!cool("poke", 350)) return;
     retrigger(pig, "jiggle");
     buzz(10);
     play("tick");
     if (Date.now() - pokeAt > 1500) say(SAY_POKE);
     pokeAt = Date.now();
-    if (cool("pokeFx", 700)) {
-      const c = center(pigWrap);
-      confetti(c.x, c.y, 8, ["#ff9ac6", "#ffd1e5", "#fff"]);
-    }
+    const c = center(pigWrap);
+    hearts(c.x, c.y - 30);
   });
   function guardOpen(fn) {
     return function () {
@@ -737,6 +814,21 @@
 
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState === "visible" && key && !$("sheet-mask")) {
+      load().then(function (s) { if (s) rollTo(s.total); });
+    }
+  });
+
+  /* ---------- 雲端備份狀態 ---------- */
+  function paintCloud() {
+    if (!cloudDot || !window.PiggyLocal || !window.PiggyLocal.cloud) return;
+    const state = window.PiggyLocal.cloud();
+    cloudDot.dataset.state = state;
+    cloudDot.setAttribute("aria-label", state === "saved" ? "雲端備份完成" : state === "waiting" ? "等網路中，稍後自動備份" : "雲端備份");
+  }
+  window.addEventListener("piggy:cloud", function (e) {
+    paintCloud();
+    // 另一台裝置動過帳本（或剛從雲端拿回來）：畫面跟著更新
+    if (e.detail && e.detail.kind === "updated" && key && !$("sheet-mask") && !claiming) {
       load().then(function (s) { if (s) rollTo(s.total); });
     }
   });
@@ -768,7 +860,10 @@
       $("app").hidden = false;
       shown = 0;
       rollTo(s.total, 900);
-      setTimeout(function () { retrigger(pig, "jiggle"); say(null, "嗨，" + (s.display_name || "") + "！"); }, 300);
+      paintCloud();
+      const hour = Number(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei", hour: "numeric", hour12: false })) % 24;
+      const hi = hour < 5 ? "還沒睡呀" : hour < 11 ? "早安" : hour < 18 ? "午安" : "晚安";
+      setTimeout(function () { retrigger(pig, "jiggle"); say(null, hi + "，" + (s.display_name || "") + "！"); }, 300);
     } catch (e) {
       status.textContent = "連不上小豬銀行，等一下再試";
     }
