@@ -24,6 +24,52 @@
     { id: "c15a0e238b8882f07", display_name: "北投大魔王", token_hash: "e963eee3d6969a4d69cbfe3310a9d043f20b7d097a00b9d7e3114d2ee2dc53bf", balance: 1285 },
   ];
 
+  // 每台裝置各自保存的 GitHub 鑰匙（只存在這台的瀏覽器，不進任何儲庫）。
+  const TOKEN_KEY = "piggybank.ghToken";
+  function readStoredToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (err) { return ""; }
+  }
+  if (!GH.token) GH.token = readStoredToken();
+  window.PiggySync = {
+    has: function () { return !!GH.token; },
+    clear: function () {
+      try { localStorage.removeItem(TOKEN_KEY); } catch (err) {}
+      GH.token = "";
+      mem = null;
+    },
+    // 驗證鑰匙真的能寫這個帳本儲庫，才存下來。
+    set: async function (raw) {
+      const token = String(raw || "").trim();
+      if (!token) return { ok: false, message: "請貼上鑰匙" };
+      let res;
+      try {
+        res = await fetch("https://api.github.com/repos/"
+          + (GH.owner || "weslie4436") + "/" + (GH.repo || "piggybank-data"), {
+          headers: {
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            Authorization: "Bearer " + token,
+          },
+          cache: "no-store",
+        });
+      } catch (err) {
+        return { ok: false, message: "網路不穩，請再試一次" };
+      }
+      if (res.status === 401) return { ok: false, message: "鑰匙無效或已過期" };
+      if (!res.ok) return { ok: false, message: "這把鑰匙看不到帳本儲庫（" + res.status + "）" };
+      const repo = await res.json();
+      if (!repo.permissions || !repo.permissions.push) {
+        return { ok: false, message: "這把鑰匙沒有寫入權限，請勾 Contents: Read and write" };
+      }
+      try { localStorage.setItem(TOKEN_KEY, token); } catch (err) {
+        return { ok: false, message: "這個瀏覽器不讓存資料（無痕模式？）" };
+      }
+      GH.token = token;
+      mem = null;
+      return { ok: true };
+    },
+  };
+
   let chain = Promise.resolve();
   let dbp = null;
   let mem = null;

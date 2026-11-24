@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-theme="melody">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#ff6b9d"/>
+<link rel="apple-touch-icon" href="./icons/piggy-180.png?v=4"/>
+<title>小豬銀行</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./kid.css?v=1"/>
+<style>
+  .sync-box { display: grid; gap: 14px; padding: 0 4px; }
+  .sync-box textarea { width: 100%; min-height: 96px; border-radius: 18px; border: 2px solid #ffd0e0; padding: 12px; font: 600 15px/1.4 ui-monospace, monospace; box-sizing: border-box; }
+  .sync-box ol { margin: 0; padding-left: 22px; line-height: 1.7; font-weight: 600; }
+  .sync-msg { min-height: 1.4em; font-weight: 800; text-align: center; }
+  .sync-msg.bad { color: #e5484d; } .sync-msg.good { color: #1f9d55; }
+  .sync-row { display: flex; gap: 10px; }
+  .sync-row button { flex: 1; }
+  .go.ghost { background: #fff; color: #c11f6e; box-shadow: 0 6px 0 #f3b6cf; }
+</style>
+<script src="./config.js?v=1795339000"></script>
+</head>
+<body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+<main class="app parent">
+  <header class="top">
+    <span class="avatar"><img src="./icons/pig.png?v=3" alt=""/></span>
+    <div class="hello"><small>小豬銀行</small><b>雲端帳本</b></div>
+  </header>
+  <div class="ticket"><small>這台裝置</small><p class="amount" id="state" style="font-size:28px">檢查中…</p></div>
+  <section class="sync-box">
+    <ol>
+      <li>到 GitHub「Fine-grained tokens」建一把新鑰匙</li>
+      <li>Repository access 只選 <b>piggybank-data</b></li>
+      <li>Permissions → Contents 選 <b>Read and write</b></li>
+      <li>複製 <code>github_pat_…</code> 貼到下面</li>
+    </ol>
+    <textarea id="tok" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></textarea>
+    <p class="sync-msg" id="msg"></p>
+    <div class="sync-row">
+      <button type="button" class="go ghost" id="back">返回</button>
+      <button type="button" class="go" id="save">確認</button>
+    </div>
+    <button type="button" class="go ghost" id="forget" hidden>這台移除鑰匙</button>
+  </section>
+</main>
+<script src="./vault-local.js?v=8"></script>
+<script>
+(function () {
+  const $ = function (id) { return document.getElementById(id); };
+  const back = new URLSearchParams(location.search).get("back") || "./index.html";
+  const safeBack = /^https:\/\/weslie4436\.github\.io\/piggybank\//.test(back) || /^\.\//.test(back)
+    || back.indexOf(location.origin + "/") === 0 ? back : "./index.html";
+  function paint() {
+    const has = window.PiggySync.has();
+    $("state").textContent = has ? "☁️ 已連上" : "⚠️ 還沒連上";
+    $("forget").hidden = !has;
+  }
+  paint();
+  $("back").addEventListener("click", function () { location.href = safeBack; });
+  let busy = false;
+  $("save").addEventListener("click", async function () {
+    if (busy) return;
+    busy = true;
+    $("save").disabled = true;
+    $("msg").className = "sync-msg";
+    $("msg").textContent = "確認中…";
+    const r = await window.PiggySync.set($("tok").value);
+    busy = false;
+    $("save").disabled = false;
+    if (!r.ok) { $("msg").className = "sync-msg bad"; $("msg").textContent = r.message; return; }
+    $("tok").value = "";
+    $("msg").className = "sync-msg good";
+    $("msg").textContent = "連上了！回去就會用雲端帳本";
+    paint();
+    setTimeout(function () { location.href = safeBack; }, 1200);
+  });
+  $("forget").addEventListener("click", function () {
+    window.PiggySync.clear();
+    $("msg").className = "sync-msg";
+    $("msg").textContent = "已移除";
+    paint();
+  });
+})();
+</script>
+</body>
+</html>

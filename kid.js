@@ -600,6 +600,10 @@
       m.className = "menu";
       m.appendChild(item("🎁", "發額外獎金", "孩子打開時會有特別慶祝", openGrant));
       m.appendChild(item("🪙", "每天零用錢", "目前每天 " + ((parentRule && parentRule.amount) || 30) + " 元", openAllowance));
+      const synced = window.PiggySync && window.PiggySync.has();
+      m.appendChild(item(synced ? "☁️" : "⚠️", "雲端帳本", synced ? "這台已連上，換台裝置也不會丟" : "這台還沒連上，點這裡貼鑰匙", function () {
+        location.href = "./sync.html?back=" + encodeURIComponent(location.href);
+      }));
       body.appendChild(m);
     });
     function item(ic, t, s, fn) {

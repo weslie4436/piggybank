@@ -45,6 +45,7 @@
     <button type="button" class="key gate-key" data-num="0">0</button>
     <button type="button" class="key fn gate-key" data-del="1" aria-label="刪除">⌫</button>
   </div>
+  <a class="hint bad" id="sync-warn" hidden style="display:block;text-align:center;font-weight:800">⚠️ 這支手機還沒連上雲端帳本，點這裡貼鑰匙</a>
   <div class="qr-wait" id="invite-wait" hidden>處理中 <span class="dots3"><i></i><i></i><i></i></span></div>
 </main>
 <div class="mask" id="actMask" hidden>
@@ -56,7 +57,16 @@
   </div>
 </div>
 <script src="./gate.js?v=5"></script>
-<script src="./vault-local.js?v=7"></script>
+<script src="./vault-local.js?v=8"></script>
+<script>
+(function () {
+  if (window.PiggySync && !window.PiggySync.has()) {
+    var a = document.getElementById("sync-warn");
+    a.href = "./sync.html?back=" + encodeURIComponent(location.href);
+    a.hidden = false;
+  }
+})();
+</script>
 <script src="./exchange.js?v=7"></script>
 </body>
 </html>
