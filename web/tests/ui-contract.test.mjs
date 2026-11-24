@@ -50,7 +50,8 @@ test("spend card uses the shared PIN pad plus a bag confirm, not custom inputs",
   assert.doesNotMatch(js, /paintKnock|knockOnce|還沒有撲滿/);
   const ex = read("exchange.js");
   assert.match(ex, /className = "apple-row"/);
-  assert.match(ex, /伺服器維修 請聯絡家長/);
+  assert.match(ex, /網路不穩，請再輸入一次密碼/);
+  assert.match(ex, /function resetPin/);
   assert.doesNotMatch(ex, /placeholder = "備註"/);
   assert.doesNotMatch(ex, /家裡還沒開/);
 });
