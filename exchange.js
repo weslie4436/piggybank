@@ -15,6 +15,19 @@
   let busy = false;
   let exchange = null;
   let token = "";
+  let draftNote = "";
+
+  // 密碼要重打時一定要把格子清空、鍵盤解鎖，否則六格已滿會擋掉所有數字。
+  function resetPin(message) {
+    typed = "";
+    sealedPin = "";
+    sealPad(false);
+    paintDots();
+    if (message && dotsEl) {
+      dotsEl.classList.add("is-bad");
+      window.setTimeout(function () { dotsEl.classList.remove("is-bad"); }, 400);
+    }
+  }
 
   function paintDots() {
     if (!dotsEl) return;
@@ -44,9 +57,10 @@
   }
 
   function closeNote() {
+    const noteEl = document.getElementById("parent-note");
+    if (noteEl) draftNote = noteEl.value;
     if (actMask) actMask.hidden = true;
-    sealPad(false);
-    sealedPin = "";
+    resetPin(false);
   }
 
   function openNote() {
@@ -67,6 +81,7 @@
     input.placeholder = "例如：文具、點心";
     input.setAttribute("aria-label", "說明");
     input.autocomplete = "off";
+    input.value = draftNote;
     row.appendChild(input);
     actBody.appendChild(err);
     actBody.appendChild(row);
@@ -118,15 +133,18 @@
       });
       if (!x.res || !x.res.ok || !x.j) {
         stopWait();
-        if (dotsEl) dotsEl.classList.add("is-bad");
-        window.setTimeout(function () { if (dotsEl) dotsEl.classList.remove("is-bad"); }, 400);
-        typed = pin;
-        paintDots();
-        openNote();
-        const again = document.getElementById("exErr");
-        const message = (x.j && x.j.message) || "PIN 不對";
-        if (again) again.textContent = message;
+        draftNote = note;
+        const code = x.j && x.j.error;
+        const message = (x.j && x.j.message) || "家長密碼錯誤";
         if (statusEl) statusEl.textContent = message;
+        if (code === "bad_pin" || code === "pin_locked" || code === "validation_error") {
+          resetPin(true);
+          if (hey) hey.textContent = exchange ? exchange.requested_amount + " 元" : hey.textContent;
+        } else {
+          // 找不到、已取消、已過期：這筆不能再核准，鍵盤關掉免得一直試
+          resetPin(true);
+          if (padEl) padEl.classList.add("is-off");
+        }
         busy = false;
         return;
       }
@@ -138,7 +156,8 @@
       if (waitEl) waitEl.hidden = true;
     } catch (e) {
       stopWait();
-      if (statusEl) statusEl.textContent = "伺服器維修 請聯絡家長";
+      resetPin(false);
+      if (statusEl) statusEl.textContent = "網路不穩，請再輸入一次密碼";
     } finally {
       busy = false;
     }
